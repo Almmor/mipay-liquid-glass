@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  卡片翻转「出场」半程：横向展开回来。
+  与 island_flip_out 配对，形成 1→0→1 的翻转观感。
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/decelerate_interpolator">
+    <scale
+        android:duration="260"
+        android:fromXScale="0.0"
+        android:pivotX="50%"
+        android:toXScale="1.0" />
+    <alpha
+        android:duration="260"
+        android:fromAlpha="0.45"
+        android:toAlpha="1.0" />
+</set>

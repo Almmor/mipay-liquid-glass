@@ -1,6 +1,6 @@
 # 小米智能卡 · 反编译分析与 Hook 目标清单
 
-> **状态：本报告的结论已在 v1.0.1 ~ v1.0.7 全部落地**，明细见文末「七~十二」六节。
+> **状态：本报告的结论已在 v1.0.1 ~ v1.5.4 全部落地**，明细见文末「七~二十四」十八节。
 
 分析对象（工作目录下两个 APK）：
 
@@ -302,3 +302,492 @@ Dialog 保持替换（弹窗窗口本就透明，需要玻璃背景出效果）�
 2. 上层：overlay 形态 `LiquidGlassDrawable`（strength 1.5）—— 不描边、不做色散。
 
 外层仍用 `StateListDrawable` 承载 normal / pressed 两态。
+
+### v1.0.8：玻璃配比微调
+
+| 元素 | 常量 | v1.0.7 | v1.0.8 |
+| --- | --- | --- | --- |
+| 余额面板 | `AppleStyle#BALANCE_GLASS_STRENGTH` | 2.6 | **1.4**（更透） |
+| 充值按钮 | `AppleStyle#RECHARGE_GLASS_STRENGTH` | 1.5 | **2.4**（更强） |
+
+只改这两个强度常量，绘制路径完全不变（仍为 overlay 形态，不描边、不色散）。
+
+### v1.0.9：充值按钮改为高光磨砂玻璃
+
+原先按钮底层是**不透明 Apple 蓝**（`#007AFF` / 深色 `#0A84FF`），本质是实心蓝按钮。
+v1.0.9 把底层换成 `AppleStyle#frostedPill` 生成的**半透明白磨砂层**：
+
+| 状态 | 深色模式 | 浅色模式 |
+| --- | --- | --- |
+| 常态 | 顶 `#42FFFFFF` → 底 `#26BFD4F2` | 顶 `#80FFFFFF` → 底 `#54DCE9FF` |
+| 按下 | 顶 `#5CFFFFFF` → 底 `#3DBFD4F2` | 顶 `#9EFFFFFF` → 底 `#70DCE9FF` |
+
+上层玻璃高光仍为 overlay 形态的 `LiquidGlassDrawable`（`RECHARGE_GLASS_STRENGTH = 2.4`）。
+文字颜色随之改为 iOS 主标签色（浅 `#1C1C1E` / 深 `#FFFFFF`），因为半透明玻璃上的纯白字会糊掉。
+
+### v1.1.0：余额区切换到 iOS 卡片规格
+
+充值按钮从「磨砂玻璃」改为规格指定的**纯黑药丸**，余额区改为 **iOS 极简卡片 + 大数字**。
+
+**卡片容器** `layout_balance_reminder`：
+
+| 项目 | 规格 | 落地方式 |
+| --- | --- | --- |
+| 底色 | 浅 `#FFFFFF` / 深 `#1C1C1E` | `GradientDrawable#setColor` |
+| 圆角 | 14pt | `setCornerRadius(14 × density)` |
+| 阴影 | alpha 4% / Y 4pt / blur 16pt | `setElevation(4dp)` + API 28 `setOutlineSpotShadowColor(0x0A000000)` |
+| 内边距 | 左右 18pt / 上下 20pt | `setPadding` |
+
+**排版**（`balance_text_layout` 转竖向）：
+
+| id | 规格 | 落地 |
+| --- | --- | --- |
+| `layout_balance_reminder_title` | 12pt / Semibold / `#8E8E93` | `sans-serif-medium` |
+| `balance_text` | 34pt / Heavy / 黑（深色白）/ 字距 -0.4pt | `sans-serif-black` + `setLetterSpacing(-0.012em)` |
+| 两者间距 | 4pt | `balance_text` 的 `topMargin` |
+
+**充值按钮** `btn_balance_reminder_recharge`：高 32pt（改写 `LayoutParams.height`）、
+宽自适应（`WRAP_CONTENT`）、左右内边距 18pt、圆角 16pt、纯黑底白字（深色反转）。
+
+**卡面阴影**：`AppleStyle#applyCardFaceShadow` 在给卡面叠玻璃罩时同时设置圆角
+outline（半径取 `cardOverlayRadius`）+ `setElevation(2dp)`，对应 alpha 8% / Y 2pt / blur 8pt。
+
+> 注：View 阴影由 elevation 驱动，阴影**颜色/透明度**仅 Android 9（API 28）起可指定，
+> 更低版本回退到系统默认阴影。
+
+### v1.0.9：充值按钮改为高光磨砂玻璃（已被 v1.1.0 取代）
+
+## 十三、v1.1.1：移除页面引导提示
+
+需要去掉两句提示：「手机背面中上部 靠近读卡器」与「请验证指纹」。
+
+**证据与难点**
+
+- `请验证指纹` = `@string/verify_finger`（`0x7f1108aa`），
+  它是 `notice_text`（`0x7f0a050e`）在 XML 里的默认文案。`notice_icon`
+  （`0x7f0a050d`，Lottie）与 `notice_text` 同属
+  `com.miui.tsmclient.quick.nonenfc.SwitchCardFingerLayer`（`finger_layer`）。
+- `手机背面中上部 靠近读卡器` 在 **tsmclient 与 nextpay 两个包的字符串表里都搜不到**
+  （`中上部`、`背面中上` 均无命中），说明它是**运行时写入**的动态文本。
+  既然两句都落在同一个 `notice_text` 上，隐藏该视图即可一并去掉。
+
+**落地：新增 `glass/PageTweaks.java`，双通道识别**
+
+| 通道 | 规则 |
+| --- | --- |
+| 按 id | 资源项名为 `notice_text` → 隐藏 |
+| 按文案（兜底） | 精确匹配 `请验证指纹` / `請驗證指紋` |
+| 按文案（组合） | 必须含 `靠近读卡器`/`靠近讀卡機`，且含 `背面` 或 `中上部` |
+
+组合规则用于避免误伤其它正常的 NFC 引导（例如「请将手机靠近读卡器进行刷卡」不含「背面」，不会命中）。
+
+命中后仅 `setVisibility(GONE)`，不改文本、不影响布局测量。
+调用点在 `GlassViewStyler#styleTree` 的最前面（优先级 -1），命中即剪枝，
+不再对这些提示做玻璃化处理。
+
+## 十四、v1.2.0：超级岛（焦点通知）
+
+### 1. 上岛机制（反编译 `classes2.dex`）
+
+上岛代码**不在 `classes.dex`**：`classes.dex` 只含 R 字段与少量引用，
+`classes2.dex` 才是实现（含 `miui.focus*` 与 `island*` 字符串）。
+命中的契约字符串：
+
+| 字符串 | 用途 |
+| --- | --- |
+| `miui.focus.rv` | 自定义 RemoteViews |
+| `miui.focus.param.custom` | 自定义参数 Bundle |
+| `miui.focus.actions` / `miui.focus.action_1` | 动作 |
+| `miui.focus.pics` / `miui.focus.pic_start` | 图片 |
+| `param_island` | 岛参数 key |
+| `islandTimeout` / `islandPriority` / `islandFirstFloat` / `islandProperty` | 岛行为参数 |
+| `island_notification` | 通知 tag（另有 `tsmclient island notification`） |
+| `IslandManager.java`、`NfcEventMonitorService:sendIslandNotification` | 关键类与投递方法 |
+| `isCurrentSimpleCardSwipeSwitchOn`、`updateSimpleCardSwipeSwitchStatus` | 与岛上「刷卡状态切换」按钮相关 |
+| `persist.sys.feature.island` | 能力开关 |
+
+App 自带的岛布局 `layout/island_custom_notification_view`（`res/VC.xml`）：
+
+```
+LinearLayout(H)  paddingStart/End=island_layout_padding_*
+├── FrameLayout  background=drawable/icon_island_background，尺寸=island_layout_card_icon_layout_*
+│   └── ImageView  id=iv_left_icon
+├── LinearLayout(V)  weight=1，marginEnd=island_layout_content_layout_margin_end
+│   ├── TextView  id=tv_title     textSize=island_layout_title_text_size
+│   └── TextView  id=tv_subtitle  textSize=island_layout_subtitle_text_size maxLines=1
+├── ImageView  id=iv_right_icon
+└── TextView   id=btn_right  background=drawable/island_custom_notification_button_bg
+```
+
+### 2. 为什么必须钩通知，而不是钩视图
+
+岛是 `RemoteViews`，由 **SystemUI 在自身进程 inflate** ——
+模块的视图树遍历（在 App 进程里跑）根本拿不到它。
+但 `RemoteViews` 是在 **App 进程**构建后塞进 `Notification.extras` 的，
+因此在 `NotificationManager#notify` 之前改写该对象即可，
+`setTextColor` / `setFloat` / `setViewVisibility` 等动作会在 SystemUI 侧生效。
+
+新增 `glass/IslandStyler.java`：
+
+- `XposedBridge.hookAllMethods(NotificationManager, "notify")` —— 用 `hookAllMethods`
+  覆盖 `(int,Notification)` / `(String,int,Notification)` 等重载，不依赖具体签名；
+- 判定是否岛屿通知：`extras` 含 `miui.focus.rv`（RemoteViews）或 `param_island`，或 tag 为 `island_notification`；
+- 改写：标题白 15sp（字距 -0.01em）、副标题 60% 白 12sp、
+  `iv_right_icon` 与 `btn_right` 置 `GONE`；
+- 所有 id 用 `Resources#getIdentifier(name,"id",pkg)` 按名解析（`tv_title`/`tv_subtitle`/
+  `iv_left_icon`/`iv_right_icon`/`btn_right`），跨版本更稳。
+
+### 3. 「不上岛」与「失败也上岛」
+
+- **不上岛**：`persist.sys.feature.island` 是 App 上岛前读的能力开关。
+  Root 模块在 `system.prop` 写入，并在 `service.sh` 用 `resetprop` 兜底；
+  该属性为 `ro.*` 之外的可写属性，重启后生效。
+- **失败也上岛**：失败路径是否调用 `sendIslandNotification` 静态分析无法确定，
+  因此加了诊断日志（过滤 tag `MiPayLiquidGlass/Island`）：
+  上岛通知会打印 tag/title/text；含「失败/错误/异常/重试」却未上岛的通知也会打印。
+  拿到实机日志后再精准实现。
+
+## 十五、v1.2.1：刷卡动画的载体选择
+
+需求：刷卡时出现 iOS 风格动画（卡片翻转 → 勾/叉 → 余额 + 交易金额）。
+
+关键判断：**动画载体决定可行性与风险**，三条路线见 README「刷卡动画方案」一节。
+要点：
+
+- **岛内动画（RemoteViews 替换）**：`RemoteViews(packageName, layoutId)` 的 `packageName`
+  可以是**本模块自己的包**（模块 APK 已安装），因此模块可以自带布局与动画资源，
+  在 hook 到 `miui.focus.rv` 时**整体替换**成自己的 RemoteViews。
+  限制：RemoteViews 只能实例化白名单控件，动画仅支持 ViewFlipper / AdapterViewFlipper
+  这类「子视图切换 + in/out 动画」机制，无法做真正的 3D 变换。
+- **SystemUI 注入**：需要把 `com.android.systemui` 加入模块作用域并在其进程内建窗口。
+  动画自由度最高（可盖锁屏），但崩了会导致状态栏消失，属高危改动。
+- **App 悬浮窗**：`TYPE_APPLICATION_OVERLAY` 无法覆盖锁屏，不满足刷卡场景。
+
+数据链路：余额 / 金额可从 `IslandStyler` 已钩到的焦点通知
+（`miui.focus.rv` 与 `Notification.extras`）中提取，两种载体都可复用。
+
+另：v1.2.1 已在设置界面提供「重启 SystemUI」（`RootHelper#restartSystemUi`，
+依次 `pkill -f com.android.systemui` / `killall`），供后续改 SystemUI 相关配置时重新加载。
+
+## 十六、v1.3.0：方案 A 落地（岛内 iOS 刷卡动画）
+
+把 {@code miui.focus.rv} 整体替换为模块自己的 RemoteViews。
+
+**模块侧新增资源**
+
+| 资源 | 作用 |
+| --- | --- |
+| `layout/island_swipe_card` | 岛内容布局：卡片 flipper + 状态图标 + 金额 + 余额 |
+| `drawable/bg_island_card` | 纯黑 26dp 圆角底（iOS 灵动岛） |
+| `anim/island_flip_out` / `island_flip_in` | 卡片翻转的横向压扁 / 展开（scaleX + alpha） |
+
+布局 id：`island_card_flipper`、`island_card_front`、`island_card_back`、
+`island_status`、`island_amount`、`island_balance`。
+
+**新增类**
+
+- `IslandCardRenderer`：Canvas 现画卡片与勾/叉位图（不依赖图片资源）。
+  成功 `#34C759`、失败 `#FF3B30`，白色圆头笔画。
+- `IslandStyler`：改写为「替换布局 + 两段式翻转 + 数据解析」三段逻辑。
+
+**两段式翻转**
+
+`RemoteViews` 无法做 3D 变换，因此用 `ViewFlipper` 承载卡面前后两帧
+（in/out 动画写在布局 XML 里），首发通知显示正面；
+`FLIP_DELAY_MS = 520` 后由模块用 `NotificationManager#notify(tag, id, notification)`
+补发同 tag / 同 id 的通知并 `setDisplayedChild(1)`，触发翻转。
+补发全程用 `ThreadLocal` 的 `SELF_POST` 标记，防止钩子递归。
+
+**失败态判定**
+
+关键词表 `FAILURE_KEYWORDS`（失败/错误/异常/超时/余额不足/拒绝/未完成/取消/
+fail/error/declined/insufficient/timeout…）命中即打叉，否则打勾。
+金额 `AMOUNT_PATTERN`（`[¥￥]数字` 或 `数字元`）、余额 `BALANCE_PATTERN`
+（`余额…数字`）从 `EXTRA_TITLE/EXTRA_TEXT/EXTRA_SUB_TEXT` 拼接文本中提取。
+
+> 待实机验证项：SystemUI 能否 inflate 本模块包名的 RemoteViews、
+> 补发通知是否被岛接受为「原地更新」（而非新建一条）、
+> 以及 `ViewFlipper` 的 in/out 动画在岛内是否生效。
+
+## 十八、v1.3.2：实机日志确认的上岛结构
+
+实机 LSPosed 日志（`MiPayLiquidGlass/Island`）关键行：
+
+```
+[notify] tag=null id=10 channel=TMS_CHANNEL island=true
+  rv(main)=RemoteViews?  contentView=-  big=-  headsup=-
+  keys=[android.reduced.images, miui.focus.pics, miui.focus.param.custom,
+        miui.focus.rv, android.appInfo, miui.focus.actions, android.showWhen]
+  title=   text=
+```
+
+另有 `[startForeground] channel=TMS_CHANNEL_BACKGROUND_SERVICE island=false`（已被正确忽略）。
+
+**确认的事实**
+
+| 结论 | 依据 |
+| --- | --- |
+| 上岛走 `NotificationManager#notify` | 日志来源标记为 `[notify]` |
+| 岛通知标识 | channel `TMS_CHANNEL`、`id=10`、`tag=null` |
+| 岛相关 extras | `miui.focus.rv` / `miui.focus.pics` / `miui.focus.param.custom` / `miui.focus.actions` |
+| 通知 `title`/`text` 为空 | 金额与余额是 `setTextViewText` 写进 RemoteViews 的 |
+| `persist.sys.feature.island = 1` | `log/props.txt` |
+
+**修正的两个自身缺陷**
+
+1. `describe()` 在实机输出过 `RemoteViews?` —— 该 Android 版本上 `mPackage` /
+   `mLayoutId` 字段名不同。改为「先试隐藏方法 `getPackage()` / `getLayoutId()`，
+   再试字段」的多路兜底。
+2. 数据解析只读通知文本（全空）→ 岛上无数据。新增 `describeTextActions()`：
+   反射读取 `RemoteViews#mActions` 中 `setText*` 动作的 `viewId` + `value`，
+   并入 `IslandData` 解析。
+
+**新增诊断**：`rvTexts` / `param.custom`（Bundle 键值）/ `pics` / `actions`，
+用于判定岛究竟由哪个 key 驱动。
+
+> **待判定**：`miui.focus.rv` 是否就是岛的展示内容。若日志显示
+> `rvTexts` 为空而 `param.custom` / `pics` 才是岛的真实数据源，
+> 则说明 `miui.focus.rv` 只是通知中心的视图 —— 方案 A（换 RemoteViews）
+> 结构上无法改写岛，必须转方案 B（SystemUI 注入）。
+
+## 十九、v1.4.0：方案 B 落地（SystemUI 自绘动画）
+
+**为什么放弃 A**：实机验证表明换掉 `miui.focus.rv` 后岛没有任何变化
+（`title`/`text` 为空、数据写在 RemoteViews 动作里、岛由 SystemUI 侧渲染），
+方案 A 结构上无法改写岛。
+
+**新结构**
+
+```
+小米智能卡进程                           SystemUI 进程
+IslandStyler（识别焦点通知）
+   │ 解析 金额 / 余额 / 成功失败
+   ▼
+IslandBridge.send()  ──显式广播──▶  IslandOverlayController（注册接收器）
+   action=…ISLAND_SWIPE                 └─ IslandOverlay（Canvas 自绘 → 播放）
+   setPackage("com.android.systemui")
+```
+
+**新增作用域**：`com.android.systemui`
+（`arrays.xml` 的 `xposed_scope` 与 `LiquidGlassModule.PKG_SYSTEM_UI`）。
+SystemUI 侧只安装动画控制器，**不做任何界面玻璃化**。
+
+**动画本体 `IslandOverlay`**（自绘，总时长 2900ms）
+
+| 阶段 | 时间 | 做法 |
+| --- | --- | --- |
+| 卡片入场 | 0–240ms | 缩放 0.86→1 + 淡入 |
+| 卡片翻转 | 240–760ms | `Camera#rotateY` 0→180°，真正的 3D 翻转 |
+| 状态图标 | 760–1160ms | 实心圆 + `PathMeasure` 逐段描出的对勾 / 叉 |
+| 金额与余额 | 1000–1400ms | 上移 + 淡入 |
+| 停留 / 淡出 | 1400–2900ms | 保持 1 秒后整体淡出，回调移除窗口 |
+
+**窗口策略 `IslandOverlayController`**
+
+- 安装点：hook `Application#onCreate` 取到 SystemUI 的 Context（不依赖 SystemUI 内部类名）；
+- 接收：动态注册 `RECEIVER_EXPORTED`（API 33+）接收 `ISLAND_SWIPE`；
+- 窗口类型按优先级尝试：`2014 TYPE_STATUS_BAR_PANEL`（@hide，字面量）→ `2006` → `2015` → `2038`；
+- flags：`FLAG_NOT_FOCUSABLE | FLAG_NOT_TOUCHABLE | FLAG_LAYOUT_IN_SCREEN | FLAG_LAYOUT_NO_LIMITS`
+  —— **不拦截触摸**，动画期间用户操作不受影响；
+- 位置：顶部居中，`y = 状态栏高度 + 8dp`；总时长结束后自动 `removeViewImmediate`。
+
+**验证入口**：设置界面「预览成功动画 / 预览失败动画」按钮，
+直接发广播播放，无需真实刷卡。日志过滤 `MiPayLiquidGlass/IslandUI`。
+
+## 二十、v1.5.0：查证官方文档后重做（多路备份）
+
+### 1. 方案 A 被官方规范否决
+
+小米澎湃OS 开发者平台《小米超级岛 → 开发指南》《接入流程》等文档确证：
+
+- 岛的数据接口是 **`miui.focus.param`（String，JSON）**；
+  大岛/小岛为 JSON 内 `param_island.bigIslandArea` / `smallIslandArea`，
+  由**模板组件**构建，**不是 RemoteViews**；
+- `miui.focus.rvBar` / `miui.focus.rvBarNight` 仅供 **OS2 状态栏**；
+- 官方未提供「自定义岛 RemoteViews」能力 →
+  **v1.3.x 替换 `miui.focus.rv` 结构上不可能生效**（与实机一致）；
+- 第三方接入需**申请白名单**（OAID 调试设备，30 天/10 台）。
+
+（旁证：`miui.focus.pics`（Bundle）、`miui.focus.actions`（Bundle）、
+JSON 内 `param_v2`/`business`/`param_island`/`baseInfo`/`hintInfo` 等为文档确证字段。）
+
+### 2. 窗口层级纠正（AOSP `getWindowLayerFromTypeLw`，system uid）
+
+| type | 值 | 层级 |
+| --- | --- | --- |
+| TYPE_NOTIFICATION_SHADE | 2040 | 17（**锁屏宿主**） |
+| TYPE_STATUS_BAR | 2000 | 15 |
+| TYPE_SYSTEM_OVERLAY | 2006 | 23 |
+| TYPE_SYSTEM_ERROR | **2010** | 27 |
+| TYPE_SECURE_SYSTEM_OVERLAY | 2015 | 33 |
+| TYPE_APPLICATION_OVERLAY | 2038 | 11（**盖不住锁屏**） |
+| TYPE_STATUS_BAR_PANEL | 2014 | 已废弃 |
+
+v1.4.0 首选 2014 且把 `TYPE_SYSTEM_ERROR` 写成 2015 → 窗口加不上。
+
+### 3. 本版实现
+
+**显示三路**：① 挂进状态栏窗口（2000）视图树 → ② 挂进通知栏窗口（2040）视图树
+（锁屏就在这棵树里，挂进去等于继承该窗口）→ ③ 自建窗口 `2010 → 2006 → 2015 → 2038`。
+窗口根视图通过 hook `ViewRootImpl#setView` 捕获。
+
+**触发两路**：① SystemUI 进程内 hook
+`com.android.systemui.statusbar.NotificationListener#onNotificationPosted`（免跨进程）
+→ ② 跨进程广播。
+
+**另修**：`IslandOverlay` 缺 `onMeasure()`，`WRAP_CONTENT` 下高度为 0 →
+即使窗口成功也看不见。
+
+**新增**：`IslandInfo`（两进程共用的解析）、`PreviewActivity`（App 内预览，保证可见）、
+设置界面第三个按钮「测试 SystemUI 动画」。
+
+### 4. 参考实现
+
+**HyperIsland**（`io.github.hyperisland`，1812z，MIT）：面向 HyperOS 3/4 的超级岛模块，
+hook `NotificationManagerService` + HyperOS SystemUI，Compose 渲染岛 UI，支持锁屏常驻。
+
+## 二十一、v1.5.1：作用域缺失（实机根因）
+
+**实机 LSPosed 日志给出确凿结论**：
+
+- `db_scope.txt` 中本模块作用域只有 `com.miui.tsmclient` / `com.mipay.wallet` / `com.miui.nextpay`
+  —— **`com.android.systemui` 不在其中**；
+- 全部日志中 `MiPayLiquidGlass/IslandUI` 与 `loaded in SystemUI` **命中数为 0**。
+
+即 SystemUI 侧代码从未执行。原因是 `xposed_scope` meta-data 仅影响**首次安装**时的推荐作用域，
+已启用模块新增的作用域不会自动应用。
+
+**同时确认的岛结构（实机日志）**
+
+```
+[notify] id=10 channel=TMS_CHANNEL island=true
+  rv(main)=com.miui.tsmclient/0x7f0d00b2   ← 即 layout/island_custom_notification_view
+  rvTexts=[]                                ← RV 内无 setText 动作
+  param.custom={"isShowNotification":false,"islandFirstFloat":true,
+                "business":"tsmclient","param_island":{"islandProperty":0,"islandTim…}
+  pics=Bundle[{miui.focus.pic_start=Icon(typ=BITMAP size=856x539)}]
+  actions=Bundle[{miui.focus.action_1=Notification$Action@…}]
+  title= text=
+```
+
+推论：
+
+1. `miui.focus.rv` 确为 App 自带岛布局，但文本不在 RV 动作里；
+2. 岛内容/图片由 `miui.focus.param.custom`（JSON）+ `miui.focus.pics` 驱动，
+   与官方文档「`miui.focus.param` JSON + 模板组件」一致；
+3. 岛受模板限制，无法改成自由 iOS 动画 → 只能走 SystemUI 覆盖层。
+
+**修复**：手动在 LSPosed 勾选「系统界面」并重启 SystemUI。本版在设置界面加了常驻提示与
+Toast 指引，使该失败可自解释。
+
+## 二十二、v1.5.2：挂载成功但被裁剪 + 数据为空
+
+勾选作用域后的实机日志（`com.android.systemui`，uid 1000）：
+
+```
+IslandUI: SystemUI 侧安装完成
+IslandUI: 已安装窗口捕获（ViewRootImpl#setView）
+IslandUI: 找不到 NotificationListener，改用广播触发
+IslandUI: 已捕获状态栏窗口根视图 type=2000 title=StatusBar cls=StatusBarWindowView
+IslandUI: 已捕获通知栏窗口根视图 type=2040 title=NotificationShade cls=NotificationShadeWindowView
+IslandUI: [broadcast] 预览/触发 success=true amount=[] balance=[]
+IslandUI: 已挂入 SystemUI 窗口视图树
+```
+
+**问题一：挂进状态栏窗口 → 被裁剪**
+
+`StatusBarWindowView`（type 2000）的窗口高度只有状态栏那么高（约 30dp），
+206dp 的动画被窗口边界裁掉。修正为**优先挂进全屏的通知栏窗口**
+（`NotificationShadeWindowView`，type 2040），并加「容器高度 < 150dp 直接跳过」的保护，
+挂载成功时打印容器类名与尺寸。
+
+**问题二：金额/余额为空**
+
+`EXTRA_TITLE`/`EXTRA_TEXT` 为空、`rvTexts=[]`，数据只在
+`miui.focus.param.custom` 的 JSON 中。`IslandInfo` 已将该 JSON 原文纳入解析范围；
+日志 JSON 转储上限由 300 → 2600 字符。
+
+**问题三：HyperOS 无 `NotificationListener`**
+
+`com.android.systemui.statusbar.NotificationListener` 在 HyperOS 3 上不存在，
+进程内触发不可用，退回跨进程广播（实测刷卡时确实触发成功）。
+
+## 二十三、v1.5.3：改走独立窗口 + 可关闭系统岛
+
+v1.5.2 日志证明：注入成功、数据解析正确（`amount=[¥2.00]`）、
+且**确实挂进了全屏容器** `NotificationShadeWindowView`（1200x2670）——
+但画面不可见。判定为**宿主窗口本身不可见**（被锁屏压住或被整体平移出屏）。
+
+**改动一：自建系统窗口提为首选**
+
+顺序由「先挂视图树」改为：
+
+1. 自建窗口 `2010 → 2006 → 2015 → 2038`（独立图层，层级 27/23/33 > 锁屏 17）；
+2. 失败再回退挂进 SystemUI 窗口视图树。
+
+日志新增 `自建窗口成功 type=… size=…` / `自建窗口 type=… 失败 <异常>`，
+可区分"权限被拒"与"根本没走到"。
+
+**改动二：`Config#hideSystemIsland`（默认开）**
+
+开启后在 `IslandStyler` 中摘除 `miui.focus.param.custom` / `miui.focus.pics` /
+`miui.focus.actions` / `miui.focus.rv`，使系统不再渲染自带岛，只保留我们的动画。
+
+## 二十四、v1.5.4：动画可见后的四项收尾
+
+v1.5.3 实机确认**自建系统窗口可以显示动画**（"岛出现了"）。随后修四件事：
+
+**1) 播完不消失**
+
+`onFinish` 在 `onDraw` 的绘制流程中直接调 `WindowManager#removeViewImmediate`，
+系统拒绝窗口操作 → 视图长期驻留。改为 `View#post(...)` 投递到下一帧执行，
+并新增 `DURATION + 600ms` 超时兜底；移除失败时 `removeViewImmediate → removeView`、
+宿主侧 `removeView → removeViewInLayout` 逐级降级。
+
+**2) 金额/余额为空**
+
+`EXTRA_TITLE`/`EXTRA_TEXT`/RV 动作全空，文案只在 `miui.focus.param.custom`。
+新增 `IslandInfo#jsonTexts`：正则取全部 `"key":"value"`，
+按 `title → content → frontTitle → subtitle → …` 优先级取值，不足则按出现顺序兜底；
+金额取第 1 条、余额取第 2 条。另加 `paramJSON=` 完整 JSON 日志行。
+
+**3) 尺寸缩小**
+
+胶囊 320×190 → 260×168dp，卡片 132×88 → 112×68，状态图标 44 → 34，
+金额 24 → 21sp，余额 13 → 11.5sp；并按「卡片 → 状态 → 金额 → 余额」重排，消除重叠。
+
+**4) 系统岛打架**
+
+`hideSystemIsland` 默认改为开启，摘除 `miui.focus.*` 后系统不再渲染自带岛。
+
+## 十七、v1.3.1：修正槽位与钩子覆盖面
+
+v1.3.0 实机结果：**岛无法展开**、**仍为系统自带岛**。两条各自对应一个真实错误。
+
+**1. 槽位尺寸不匹配（→ 无法展开）**
+
+App 自带 `island_custom_notification_view` 是单行紧凑布局，说明 `miui.focus.rv`
+承载的是**收起态**。v1.3.0 把约 200dp 高的竖版布局塞进去 → 岛装不下 → 回退系统岛。
+
+修正后的槽位分配：
+
+| 槽位 | 布局 |
+| --- | --- |
+| `miui.focus.rv` / `contentView` | `island_swipe_row`（紧凑行：状态图标 + 金额 + 余额） |
+| `bigContentView` / `headsupContentView` | `island_swipe_card`（竖版：卡片翻转 + 勾/叉 + 金额 + 余额） |
+
+**2. 钩子覆盖面不足（→ 无任何变化）**
+
+v1.2.0/v1.3.0 只钩 `NotificationManager#notify`，而 `sendIslandNotification` 位于
+**Service**（`NfcEventMonitorService`）—— 前台服务通知不经过 `notify`。修正后钩三条：
+
+- `NotificationManager#notify`（全部重载）
+- `NotificationManager#notifyAsPackage`
+- `Service#startForeground`（全部重载）
+
+**3. 诊断增强**
+
+`logNotification` 打印：来源方法 / tag / id / channel / 四个槽位的 RemoteViews
+（`mPackage` + `mLayoutId`）/ `extras` 键名 / 标题与正文。
+`describe()` 反射读取 `RemoteViews#mPackage` / `mLayoutId`，
+可据此判断槽位里是不是 `com.miui.tsmclient/0x7f0d00b2`（即 App 自带的岛布局）。

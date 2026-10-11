@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  岛内容 —— 紧凑行版本（默认槽位用）。
+
+  为什么必须有这一版：App 自带的 `island_custom_notification_view` 本身就是
+  「图标 + 标题 + 副标题 + 按钮」的**单行紧凑**布局，说明 `miui.focus.rv`
+  承载的是岛收起态的内容。若把竖版大布局塞进这个槽位，岛会「装不下」并
+  退回系统自带岛（正是 v1.3.0 实机出现的问题）。
+
+  因此这里保持单行，只做 iOS 化的信息表达：状态图标 + 金额 + 余额。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <!-- 交易状态：打勾 / 打叉 -->
+    <ImageView
+        android:id="@+id/island_row_status"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter" />
+
+    <!-- 交易金额 -->
+    <TextView
+        android:id="@+id/island_row_amount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="7dp"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="#FFFFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <!-- 余额 -->
+    <TextView
+        android:id="@+id/island_row_balance"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="#99FFFFFF"
+        android:textSize="12sp" />
+
+</LinearLayout>

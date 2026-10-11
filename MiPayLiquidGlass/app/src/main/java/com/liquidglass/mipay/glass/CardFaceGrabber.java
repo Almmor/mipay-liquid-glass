@@ -1,0 +1,113 @@
+package com.liquidglass.mipay.glass;
+
+import android.graphics.drawable.Drawable;
+import android.widget.ImageView;
+
+import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
+
+/**
+ * 卡面截获器（1.5.7）。
+ *
+ * <h3>为什么要钩 {@code ImageView#setImageDrawable}</h3>
+ *
+ * <p>参考 {@code PayCardEditor} 的实现结论：小米智能卡的卡面来自
+ * {@code CardInfo.getCardArt() / mCardArt} 这个<b>远程图片 URL</b>，
+ * 由应用内嵌的 Glide 下载解码，最终以 {@code BitmapDrawable} 交给
+ * {@code ImageView}。也就是说，<b>卡面位图一定会经过这个调用</b>，
+ * 在这里截获比事后去 {@code view.draw()} 可靠得多 —— 不依赖布局完成、
+ * 不依赖视图可见、也不会错过「图片晚于遍历才解码」的时序。</p>
+ *
+ * <h3>为什么只钩 {@code setImageDrawable} 一个方法</h3>
+ *
+ * <p>{@code ImageView} 内部做了归口：{@code setImageBitmap}、
+ * {@code setImageResource}、{@code setImageURI}、{@code setImageIcon}
+ * 最终都会转调 {@code setImageDrawable}。因此单点钩住它即可覆盖全部路径，
+ * 也顺带覆盖 {@code AppCompatImageView} 的覆写（它同样会 {@code super} 下去）。</p>
+ *
+ * <h3>性能</h3>
+ *
+ * <p>该钩子在进程内每次设置图片都会触发，所以回调里只做「取位图引用 + 两次
+ * 整数比较」；真正要不要采纳、要不要降采样，都交给
+ * {@link IslandFaceCache#offerDrawable} 用最廉价的方式判定。</p>
+ */
+public final class CardFaceGrabber {
+
+    private static final String TAG = "MiPayLiquidGlass/FaceGrab";
+
+    private static boolean installed;
+
+    private CardFaceGrabber() {
+    }
+
+    /** 在目标进程安装卡面截获。重复调用无副作用。 */
+    public static void install(ClassLoader classLoader) {
+        if (installed || classLoader == null) {
+            return;
+        }
+        installed = true;
+        installImageViewHook(classLoader);
+        installCardInfoHook(classLoader);
+    }
+
+    /**
+     * 挂 {@code CardInfo#updateBackground(Context)}（卡面加载入口）。
+     *
+     * <p>类名来自同机安装的 {@code PayCardEditor} 的 DexKit 解析结果
+     * （{@code transitUpdateBackground: Lcom/miui/tsmclient/entity/CardInfo;->updateBackground(Landroid/content/Context;)Ljava/lang/Boolean;}），
+     * <b>未被混淆</b>，因此是稳定锚点。</p>
+     *
+     * <p>这个方法的入参是 {@code CardInfo} 自己，调用后卡片的后台素材就已就位；
+     * 此时把 CardInfo 里「卡名 + 位图字段」一起读出来，就能得到<b>带名字的全尺寸卡面</b>
+     * —— 比从列表小图标（157x98）拿到的清晰得多。</p>
+     */
+    private static void installCardInfoHook(ClassLoader classLoader) {
+        try {
+            Class<?> cardInfo = XposedHelpers.findClassIfExists(
+                    "com.miui.tsmclient.entity.CardInfo", classLoader);
+            if (cardInfo == null) {
+                XposedBridge.log(TAG + ": 找不到 CardInfo，跳过 updateBackground 钩子");
+                return;
+            }
+            XposedHelpers.findAndHookMethod(cardInfo, "updateBackground", android.content.Context.class,
+                    new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            try {
+                                IslandFaceCache.offerCardInfo(param.thisObject);
+                            } catch (Throwable ignored) {
+                                // 截获失败绝不能影响宿主应用
+                            }
+                        }
+                    });
+            XposedBridge.log(TAG + ": 已安装 CardInfo#updateBackground 截获");
+        } catch (Throwable throwable) {
+            XposedBridge.log(TAG + ": 安装 CardInfo 截获失败 " + throwable);
+        }
+    }
+
+    private static void installImageViewHook(ClassLoader classLoader) {
+        try {
+            XposedHelpers.findAndHookMethod("android.widget.ImageView", classLoader,
+                    "setImageDrawable", Drawable.class, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            try {
+                                Object view = param.thisObject;
+                                Object drawable = param.args == null || param.args.length == 0
+                                        ? null : param.args[0];
+                                IslandFaceCache.offerDrawable(
+                                        drawable instanceof Drawable ? (Drawable) drawable : null,
+                                        view instanceof ImageView ? (ImageView) view : null);
+                            } catch (Throwable ignored) {
+                                // 截获失败绝不能影响宿主应用加载图片
+                            }
+                        }
+                    });
+            XposedBridge.log(TAG + ": 已安装卡面截获（ImageView#setImageDrawable）");
+        } catch (Throwable throwable) {
+            XposedBridge.log(TAG + ": 安装卡面截获失败 " + throwable);
+        }
+    }
+}

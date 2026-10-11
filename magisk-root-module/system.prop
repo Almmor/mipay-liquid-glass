@@ -6,3 +6,11 @@
 # 说明：绝大多数 Android 12+ 的小米 / 红米机型出厂即已开启该属性，
 # 本模块的作用是「补齐 + 校验」。若你的设备确实未开启，需要重启生效。
 ro.surface_flinger.supports_background_blur=1
+
+# 超级岛（焦点通知）能力开关
+#
+# 反编译 com.miui.tsmclient 的 classes2.dex 可见其在上岛前会读取该属性
+# （相关字符串：persist.sys.feature.island）。若设备上该属性缺失或被置为 0，
+# 刷卡就会「不上岛」。此处补齐为 1。
+persist.sys.feature.island=1
+

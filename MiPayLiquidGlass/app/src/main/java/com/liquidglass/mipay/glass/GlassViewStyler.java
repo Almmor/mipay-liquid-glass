@@ -98,6 +98,9 @@ public final class GlassViewStyler {
         if (decor == null) {
             return;
         }
+        // 记住这棵视图树：刷卡时若内存里还没有卡面，就靠它定向找卡面视图
+        // （按类名 / 资源名识别，不要求布局完成或可见）。
+        IslandFaceCache.rememberDecor(decor);
         final float density = activity.getResources().getDisplayMetrics().density;
         schedule(decor, decor, density, cfg, 0);
     }
@@ -163,6 +166,13 @@ public final class GlassViewStyler {
         boolean consumed = overlayConsumed;
 
         if (depth > 0) {
+            // ---- 优先级 -1：需要移除的页面提示 ----
+            // 直接 GONE 并剪枝，避免再给这些提示做玻璃化。
+            if (PageTweaks.shouldHide(view)) {
+                PageTweaks.hide(view);
+                return;
+            }
+
             boolean dark = Utils.isNightMode(view.getResources());
 
             // ---- 优先级 0：动画与 H5 容器，任何情况下都不碰 ----
@@ -180,6 +190,10 @@ public final class GlassViewStyler {
                 // 只有「卡面级大图」才叠玻璃罩；logo、图标、整块容器一律原样保留。
                 // 这是 1.0.2 修复 UI 错乱的关键：不再给大容器叠整块镜面。
                 if (!consumed && isCardFaceSized(view, density, decorHeight)) {
+                    // 兜底路径：把这张大图缓存成「真实卡面」，供 SystemUI 侧的刷卡动画使用。
+                    // 主路径是 ImageView#setImageDrawable 上的截获（见 CardFaceGrabber），
+                    // 这里只在卡面由自定义 View 内部绘制、迟迟等不到 setImageDrawable 时才用得上。
+                    IslandFaceCache.captureView(view);
                     consumed = applyOverlay(view, cfg, density, decorWidth, decorHeight, dark, true);
                 }
                 return; // 剪枝：素材内部一律不动
@@ -314,6 +328,11 @@ public final class GlassViewStyler {
         try {
             float radius = cardFace ? cardOverlayRadius(view, cfg) : resolveRadius(view, density, cfg);
             view.setForeground(new LiquidGlassDrawable(cfg, radius, density, true, dark));
+            if (cardFace) {
+                // 卡面按 iOS 规格加一层底部阴影（alpha 8%、Y 2pt、blur 8pt），
+                // 让卡片在浅灰页面上「托起来」，与无阴影的余额卡片形成 Z 轴层次。
+                AppleStyle.applyCardFaceShadow(view, radius, density);
+            }
             return true;
         } catch (Throwable ignored) {
             return true;

@@ -16,8 +16,12 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
+import com.liquidglass.mipay.glass.CardFaceGrabber;
+import com.liquidglass.mipay.glass.FaceExportDiagnostic;
 import com.liquidglass.mipay.glass.GlassViewStyler;
 import com.liquidglass.mipay.glass.GlassWindowStyler;
+import com.liquidglass.mipay.glass.IslandOverlayController;
+import com.liquidglass.mipay.glass.IslandStyler;
 
 /**
  * 模块入口：为小米智能卡 / 小米钱包注入液态玻璃材质。
@@ -55,6 +59,14 @@ public class LiquidGlassModule implements IXposedHookLoadPackage {
      * 它是<b>独立进程</b>，1.0.0 未纳入作用域，导致这些页面完全没有被处理。</p>
      */
     public static final String PKG_NEXTPAY = "com.miui.nextpay";
+    /**
+     * SystemUI。
+     *
+     * <p>1.4.0 起纳入作用域：刷卡动画（方案 B）必须在 SystemUI 进程里用<b>系统窗口</b>
+     * 绘制，否则无法覆盖锁屏 —— 而刷卡绝大多数发生在锁屏 / 息屏状态。
+     * 注意：这是本项目唯一一个「非目标应用」的作用域，所有相关逻辑都做了最保守处理。</p>
+     */
+    public static final String PKG_SYSTEM_UI = "com.android.systemui";
 
     private static final Set<String> TARGET_PACKAGES = new HashSet<>(Arrays.asList(
             PKG_SMART_CARD,
@@ -66,6 +78,15 @@ public class LiquidGlassModule implements IXposedHookLoadPackage {
         if (lpparam == null || lpparam.packageName == null) {
             return;
         }
+
+        // ---- SystemUI：只装刷卡动画，不做任何界面玻璃化 ----
+        if (PKG_SYSTEM_UI.equals(lpparam.packageName)) {
+            final Config systemUiConfig = XposedPrefs.load();
+            log("loaded in SystemUI -> " + systemUiConfig);
+            IslandOverlayController.install(lpparam.classLoader, systemUiConfig);
+            return;
+        }
+
         if (!TARGET_PACKAGES.contains(lpparam.packageName)) {
             return;
         }
@@ -82,6 +103,14 @@ public class LiquidGlassModule implements IXposedHookLoadPackage {
             hookActivity(config);
             hookDialog(config);
             hookPopupWindow(config);
+            // 超级岛（焦点通知）样式：岛是 RemoteViews，由 SystemUI inflate，
+            // 常规视图树钩子碰不到，因此单独走通知投递通道改写。
+            IslandStyler.install(lpparam.classLoader, config);
+            // 卡面截获：从图片加载层面（ImageView#setImageDrawable）拿到解码后的
+            // 真实卡面位图，供 SystemUI 侧的刷卡动画使用。
+            CardFaceGrabber.install(lpparam.classLoader);
+            // 诊断入口：可被 adb 触发，把缓存里的卡面候选导出到外部私有目录核对。
+            FaceExportDiagnostic.install(lpparam.classLoader);
             log("hook 安装完成");
         } catch (Throwable throwable) {
             log("hook 安装失败: " + throwable);

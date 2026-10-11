@@ -4,10 +4,13 @@
         LSPosed 推荐作用域。
         1.0.1 新增 com.miui.nextpay（网页组件）：反编译确认它是独立进程的插件伴生包，
         承载 TagPayActivity / ScanPayActivity 与 H5 容器，1.0.0 遗漏了它。
+        1.4.0 新增 com.android.systemui：方案 B 需要在小岛宿主进程里自绘刷卡动画
+        （只有 SystemUI 的窗口能盖在锁屏之上）。
     -->
     <string-array name="xposed_scope">
         <item>com.miui.tsmclient</item>
         <item>com.mipay.wallet</item>
         <item>com.miui.nextpay</item>
+        <item>com.android.systemui</item>
     </string-array>
 </resources>

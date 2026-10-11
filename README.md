@@ -7,8 +7,8 @@
 
 | 组成 | 形态 | 作用 |
 | --- | --- | --- |
-| **LSPosed 模块** | APK（`MiPayLiquidGlass-v1.0.7.apk`） | 运行时把刷卡页、选卡页、卡详情、支付确认弹窗与浮层改造成液态玻璃材质，**完整保留设备卡面**；内置设置界面与「一键重启小米智能卡」（Root） |
-| **Root 模块** | Magisk / KernelSU zip（`MiPayLiquidGlass-Root-v1.0.7.zip`） | 开启系统级窗口模糊能力，并在开机后自动安装 / 更新上面的 APK |
+| **LSPosed 模块** | APK（`MiPayLiquidGlass-v1.6.7.apk`） | 运行时把刷卡页、选卡页、卡详情、支付确认弹窗与浮层改造成液态玻璃材质，**完整保留设备卡面**；内置设置界面与「一键重启小米智能卡 / 重启 SystemUI」（Root） |
+| **Root 模块** | Magisk / KernelSU zip（`MiPayLiquidGlass-Root-v1.6.7.zip`） | 开启系统级窗口模糊能力，并补齐超级岛能力属性、开机自动安装上面的 APK |
 
 三条核心行为边界：
 
@@ -181,8 +181,8 @@ iOS 液态玻璃的招牌特征是**折射**：玻璃边缘把背后的内容扭
 
 ```
 mi pay supports liquid glass/
-├── MiPayLiquidGlass-v1.0.7.apk          ← 装好的 LSPosed 模块（可直接安装）
-├── MiPayLiquidGlass-Root-v1.0.7.zip     ← Root 模块（Magisk / KernelSU 直接刷入）
+├── MiPayLiquidGlass-v1.6.7.apk          ← 装好的 LSPosed 模块（可直接安装）
+├── MiPayLiquidGlass-Root-v1.6.7.zip     ← Root 模块（Magisk / KernelSU 直接刷入）
 │
 ├── MiPayLiquidGlass/                    ← LSPosed 模块源码工程
 │   ├── settings.gradle.kts
@@ -231,17 +231,18 @@ mi pay supports liquid glass/
 
 ### 方式一：一体化安装（推荐）
 
-1. 用 Magisk / KernelSU 刷入 `MiPayLiquidGlass-Root-v1.0.7.zip`；
+1. 用 Magisk / KernelSU 刷入 `MiPayLiquidGlass-Root-v1.6.7.zip`；
 2. 重启设备 —— 开机后 Root 模块会自动安装 `MiPayLiquidGlass.apk`；
 3. 打开 **LSPosed 管理器 → 模块 → 小米智能卡 · 液态玻璃**，启用并确认作用域勾选了
-   `com.miui.tsmclient`（以及可选的 `com.mipay.wallet`）；
+   `com.miui.tsmclient`（以及可选的 `com.mipay.wallet`），
+   **以及 `com.android.systemui`（系统界面）** —— v1.4.0 的刷卡动画需要它；
 4. 强行停止「小米智能卡」，重新打开即可看到效果。
    更省事的做法：打开模块设置界面 → **Root 操作** → 点 **一键重启小米智能卡**，
    它会自动申请 Root 权限、强停并重新拉起目标应用。
 
 ### 方式二：手动安装
 
-1. 直接安装 `MiPayLiquidGlass-v1.0.7.apk`；
+1. 直接安装 `MiPayLiquidGlass-v1.6.7.apk`；
 2. 在 LSPosed 中启用模块并勾选作用域；
 3. 重启目标应用（建议重启设备以确保模糊属性生效）。
 
@@ -280,6 +281,7 @@ cd "MiPayLiquidGlass"
 | 卡面叠加玻璃镜面 | **开** | 在保留的卡面上叠折射高光与流光，只加质感、不遮图案 |
 | 玻璃边缘亮线 | **关** | 给每块玻璃描一圈白色亮边。**默认关闭** —— 页面元素多时大量亮边叠加会形成满屏线条 |
 | 卡面圆角 | **3.18 mm** | 卡面玻璃罩的圆角，按屏幕物理尺寸换算；3.18mm（1/8 英寸）与卡面严丝合缝 |
+| iOS 超级岛样式 | **开** | 把刷卡「超级岛」改写为 iOS 灵动岛观感：标题转白、副标题 60% 白、隐藏右侧图标与按钮 |
 
 **建议**：先只开「启用液态玻璃 + 折射」看基础效果，再按需开启「深度美化」和「沉浸模式」。
 某些应用的布局未做 edge-to-edge 适配，开启沉浸模式后可能出现状态栏遮挡，此时关掉即可。
@@ -382,126 +384,67 @@ LSPosed 侧日志在 LSPosed 管理器的日志页，过滤 tag `MiPayLiquidGlas
 
 ---
 
-## 更新日志
+## 刷卡动画方案（待定方向）
 
-### v1.0.7
+目标：刷卡时出现 **iOS 风格动画** —— 卡片翻转 → 卡下方打勾 / 打叉表示交易状态
+→ 再下方显示**余额**与**交易金额**。
 
-给充值按钮也加上液态玻璃。
+这套动画不是「改样式」，而是一套自定义动画，**载体选在哪里**决定了可行性与风险，
+必须先定方向。三条路线：
 
-- **充值按钮 = Apple 蓝胶囊 + 液态玻璃**：用 `LayerDrawable` 两层叠加 ——
-  底层保留 Apple 蓝渐变胶囊（`#007AFF` / 深色 `#0A84FF`，含按下加深），
-  上层叠一块 overlay 形态的 `LiquidGlassDrawable`（强度 1.5），
-  得到「玻璃盖在蓝色按钮上」的通透高光。
-- 上层仍是 overlay 形态：**不描边、不做色散**，不会给按钮添上线条；
-  按下态同样带玻璃高光。
-- 新增 `AppleStyle#RECHARGE_GLASS_STRENGTH` 控制按钮玻璃强度。
+| 方案 | 做法 | 优点 | 代价 |
+| --- | --- | --- | --- |
+| **A. 岛内动画** | 用本模块自己的布局替换通知里的 `miui.focus.rv`，让 HyperOS 大岛渲染我们的内容（模块 APK 已安装，`RemoteViews` 可以引用模块自己的资源） | 不碰 SystemUI，**零宕机风险**；与系统岛融为一体；**锁屏也能显示** | `RemoteViews` 只能用白名单控件与有限动画（ViewFlipper 等），「3D 翻转」只能做到近似，精细度受限 |
+| **B. SystemUI 注入** | 模块作用域扩展到 `com.android.systemui`，在 SystemUI 进程里新建一个自有窗口（可盖锁屏），用自绘 View 做完整动画 | 动画可以**完全做到位**（真 3D 翻转、时序、缓动） | 改 SystemUI 风险高：一旦异常会导致状态栏消失、需要重启；且**无法在本机验证**，要靠你反复实测 |
+| **C. App 悬浮窗** | `TYPE_APPLICATION_OVERLAY` 普通悬浮窗 | 最简单 | **锁屏下不显示**，而刷卡大多发生在锁屏 / 息屏，因此不满足需求 |
 
-### v1.0.6
+**推荐路径**：先做 **A**（安全、锁屏可用、与岛一体），把「翻转 + 勾/叉 + 余额 + 金额」
+的**信息结构与观感**做出来；若你觉得翻转的精致度不够，再在 A 的基础上追加 **B**
+（A 的数据链路可完全复用）。
 
-定位并修掉「余额背景发黑、无法透明」的**真正根因**。
-
-反编译证据：余额面板背景 `card_balance_bg` 是
-`<shape><corners radius="@dimen/swipe_card_res_view_container_radius"/>`
-`<solid color="@android:color/background_light"/></shape>` ——
-也就是 **`@android:color/background_light`（白色）**；而它的深色版本
-`card_blur_balance_bg` 用的是 `swipe_card_res_view_lite_bg`，
-值域是 `#e5ffffff`（白 90%）/ **night `#e5141414`（黑 90%）**。
-
-结论：这个余额面板在 App 自身设计里是一块**白色毛玻璃面板**，
-而模块之前给它套的是「跟随系统深色」的玻璃 + 极淡叠加 —— 深色页面下自然被看成一块黑。
-
-落地：
-
-- 余额面板改用**固定的浅色玻璃配方**（不跟随系统深色），并新增玻璃「强度倍率」
-  （`LiquidGlassDrawable` 的 `strength` 参数）把铺底与高光提亮，
-  得到**可见的透明毛玻璃**，而不是一片透明或一块黑。
-- 仍是 overlay 形态：**不描边、不做色散**，不会引入线条；流光刻意不随强度放大，
-  避免面板上出现斜向亮带。
-- 其它「余额 / 充值类面板」（卡详情页等，走关键词通道）统一复用同一套浅色毛玻璃
-  （新增 `AppleStyle#applyPanelGlass`），彻底杜绝深色下的黑块。
-
-### v1.0.5
-
-按 Apple Pay 观感做最后一轮打磨。
-
-- **卡面高光调暗**：叠加模式的铺底、膨光、流光、内阴影整体下调
-  （铺底 0.26→0.18、膨光基数 0.42→0.26、流光 48→28、内阴影 0.34→0.22），
-  卡面上的玻璃更轻、不再刺眼。
-- **余额区改为透明液态玻璃底**：`AppleStyle#applyGlassBackground` 用 overlay 形态的
-  `LiquidGlassDrawable` 作为余额区背景 —— 既透（看得见页面本身），又有玻璃柔光，
-  不会像纯色深底那样压出一块黑。
-- **余额区显示格式对齐 Apple Pay**：把 `balance_text_layout` 由横向改为竖向，
-  形成 Apple Wallet 的「**余额**（13sp 次级灰）在上、**¥19.75**（28sp 主色 medium）在下」层级；
-  充值按钮保持 Apple 蓝胶囊。
-- `preview.html` 依旧不随版本更新。
-
-### v1.0.4
-
-针对实机反馈的「满屏乱线 / 余额发黑 / 卡面圆角错位」三个问题，从根因上一次性修掉。
-
-- **不再覆盖窗口背景（修余额发黑）**：`GlassWindowStyler` 之前把 Activity 的窗口背景
-  替换成了深色玻璃，而这个页面的整页渐变恰恰是 App 用 `android:windowBackground` 画的。
-  替换后，所有透明区域（包括已经去掉背景的余额区）都透出这块深色玻璃，看着就是一块黑。
-  现在**只有沉浸模式才替换窗口背景**；弹窗仍保留（弹窗本身透明，需要玻璃出效果）。
-- **边缘亮线默认关闭（修满屏线条）**：每个被玻璃化的元素原本都会描一圈白边 + 左上角弧线，
-  一屏几十个圆角容器叠加就是满屏线条。现在 `rimStroke` 默认关闭，并移除了那条
-  「左上角高亮弧线」（它与圆角对不齐时会产生交叉乱线）。
-- **卡面玻璃罩不再做色散折射**：叠加模式跳过 AGSL 色散，避免卡面边缘出现彩色乱线。
-- **卡面圆角按物理尺寸 3.18mm**：新增「卡面圆角」设置（单位 mm，默认 3.18 = 1/8 英寸），
-  按屏幕 `xdpi` 精确换算，玻璃罩与卡面严丝合缝，不再出现圆角错位的双层轮廓。
-- 设置界面新增「玻璃边缘亮线」开关与「卡面圆角」滑杆。
-
-### v1.0.3
-
-按 Apple Wallet 排版重做余额区，并自动探测卡面圆角。
-
-- **余额区去背景**：`layout_balance_reminder` 不再套任何底色框，
-  「余额」小标签 + 大金额直接浮在页面上；文字改用 iOS `labelColor` /
-  `secondaryLabelColor`，并跟随深浅色。
-- **充值按钮 Apple Pay 化**：`btn_balance_reminder_recharge` 改为淡蓝色渐变胶囊 +
-  白色 medium 文字，按下加深；浅色 `#007AFF`、深色 `#0A84FF`。
-- **新增 `RadiusProbe` 卡面圆角自动探测**：背景 Shape → Outline → 反射圆角容器
-  （MiuiX `SmoothFrameLayout2`）→ 向上层容器递归，四路兜底，失败才用默认圆角。
-  玻璃罩因此与卡面严丝合缝。
-- **新增 `AppleStyle`**：集中管理余额区排版与充值按钮样式；`GlassChrome` 拆出
-  `isBalancePanel` / `isRechargeButton` 独立通道。
-- `preview.html` 自本版起不再随版本更新，仅保留为 1.0.x 的静态示意。
-
-### v1.0.2
-
-修复 UI 错乱，并把顶部按钮 / 余额框 / 充值按钮纳入液态玻璃，深浅色双形态。
-
-- **修复 UI 错乱**：收紧叠加规则 —— 只有「短边 ≥ 96dp 的卡面级大图」才叠玻璃罩，
-  普通图标与高度超过半屏的大容器一律不叠，消除「玻璃横带横穿页面」的问题；
-  背景支持解包 `selector`（`StateListDrawable`）后再判定。
-- **新增 `GlassChrome` 界面控件通道**：按反编译得到的真实 id 命中顶部按钮
-  （`iv_open_scan` / `swiping_help` / `swiping_settings`）、余额显示框
-  （`layout_balance_reminder`）与充值按钮（`btn_balance_reminder_recharge`），
-  换玻璃背景但**图标、文字、数值全部保留**。
-- **深浅色双形态玻璃**：跟随系统 `uiMode` 自动切换 —— 浅色「白玻璃」（亮铺底 + 冷白高光）、
-  深色「烟玻璃」（深蓝黑铺底 + 更亮边缘高光）；窗口背景一并跟随。
-- `CardFaceGuard` 关键词收紧：移除过宽的 `art`，避免误伤非卡面控件。
-
-### v1.0.1
-
-反编译小米智能卡（`com.miui.tsmclient`）与网页组件（`com.miui.nextpay`）后的适配版本。
-
-- **新增「精准适配」通道**：`GlassTargets` 类名白名单直接命中刷卡页的自绘控件。
-  修复 1.0.0 在刷卡页命中数为 0 的问题（该页所有 View 在 XML 中都没有 background）。
-- **作用域补齐 `com.miui.nextpay`**：反编译确认网页组件是独立进程的插件伴生包，
-  承载 `TagPayActivity` / `ScanPayActivity` 与 H5 容器，1.0.0 完全遗漏。
-- **新增保护**：`LottieAnimationView`（刷卡页 `notice_icon` 动画）与
-  `miuipub.hybrid.HybridView`（H5 容器）列入「绝不触碰」清单。
-- **防重影**：同一子树内只允许叠一层玻璃镜面（`overlayConsumed` 标志沿递归传递）。
-- 设置界面新增「精准适配小米智能卡」开关；新增 `docs/hook-targets.md` 反编译报告；
-  新增 `tools/adb-liquid-glass.ps1` 诊断脚本。
-
-### v1.0.0
-
-首个版本：窗口背景模糊 + 六层玻璃材质 + AGSL 折射色散、设备卡面保护与叠加、
-一键重启（Root）、Magisk / KernelSU Root 模块。
+数据来源已通：余额与交易金额可以从 App 投递的焦点通知（`miui.focus.rv` 与通知文本）
+里取到 —— 这部分 `IslandStyler` 已经在钩。
 
 ---
+
+## 更新日志
+
+### v1.6.7
+
+**刷卡动画（SystemUI 自绘，锁屏可见）**
+
+- **进出动画**：整块岛从屏幕顶部「探出」，消失时加速缩回顶部并淡出；
+- **卡片翻转**：翻转在岛开始出现时就起步。**翻转前那一面是卡背（默认卡面），
+  翻定后是卡正面（真实卡面）**；翻转拆成两半、两半都只转 0°~90°，
+  几何上不产生左右镜像，从根上避免「卡面印反」；
+- **打勾 / 打叉**：纯白线条逐段描出（`PathMeasure`），无彩色圆底；
+- **卡背**：使用 `res/drawable-nodpi/card_default_back.png`（主色 `#177EE6` +
+  居中白色徽标），centerCrop 铺满并裁圆角；拿不到真实卡面时也用它兜底；
+- **触发去重**：广播与焦点通知两条路径 1.5s 内只播一次。
+
+**卡面识别（拿你自己那张卡）**
+
+- **按卡名识别**：从卡片列表条目里读 `card_list_item_card_name`，
+  拿到「哪张卡 + 卡面图」这对完整信息，而不是靠图片比例猜；
+- **「选择卡面」列表**：设置页可看图选卡，缩略图跨进程传过来
+  （96px JPEG，39 张约 150KB，远低于广播上限）；第一项是「自动（跟随主卡）」；
+- **结果落盘**：识别结果写到
+  `/sdcard/Android/data/com.miui.tsmclient/files/faces/`，进程重启后自动读回，
+  不必每次都先打开卡片列表；
+- **删掉「盲扫磁盘缓存」兜底**：那条路只看宽高比，分不清是哪张卡，
+  会把银行卡 / 门卡之类比例相近的图当成本卡画出来。现在拿不到就显示中性默认卡面，
+  **绝不再画错卡**。
+
+**踩掉的坑（都写在这里，省得后续再踩）**
+
+| 现象 | 根因 | 处理 |
+| --- | --- | --- |
+| 改动「改了没生效」 | 动画跑在 SystemUI 进程，而它常年不重启 | 装完 APK 必须重启 SystemUI；新增日志 `SystemUI 侧加载的模块版本 = x.y.z` 一眼可辨 |
+| 卡背资源读不到 | 模块资源 id 在 SystemUI 进程里解析不了 | 用 `createPackageContext` 借模块自己的资源表 |
+| 卡名列表 / 落盘数据被清空 | 主进程与 `:daemon` 都注册了接收器 / 都来落盘 | 空集合一律不回应、不落盘 |
+| 岛无法截屏验证 | 岛是 `TYPE_SECURE_SYSTEM_OVERLAY` 安全层，系统禁止截屏录屏 | 改为让动画自报 `动画内容 卡背=… 卡正面=…` |
+| 磁盘里盲选卡面会选错 | 只看宽高比无法区分是哪张卡 | 删除该兜底，宁可显示默认卡面 |
+
 
 ## 卸载
 

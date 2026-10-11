@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
 }
 
@@ -10,8 +10,8 @@ android {
         applicationId = "com.liquidglass.mipay"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 36
+        versionName = "1.6.7"
 
         // Xposed 模块无需多语言资源压缩之外的额外配置
         resourceConfigurations += listOf("zh", "en")

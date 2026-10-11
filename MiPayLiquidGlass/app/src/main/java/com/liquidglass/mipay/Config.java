@@ -31,6 +31,12 @@ public final class Config {
     public static final String KEY_SMART_TARGETS = "smart_targets";
     public static final String KEY_RIM_STROKE = "rim_stroke";
     public static final String KEY_CARD_RADIUS_MM = "card_radius_mm";
+    public static final String KEY_ISLAND_STYLE = "island_style";
+    public static final String KEY_ISLAND_ANIMATION = "island_animation";
+    public static final String KEY_ISLAND_OVERLAY = "island_overlay";
+    public static final String KEY_HIDE_SYSTEM_ISLAND = "hide_system_island";
+    /** 用户指定的卡面（卡名）；空字符串表示「自动，跟随 App 最近显示的卡」。 */
+    public static final String KEY_FACE_PICK_NAME = "face_pick_name";
 
     /** 总开关。 */
     public boolean enable = true;
@@ -87,6 +93,49 @@ public final class Config {
      * 才能与卡面严丝合缝、不出现错位的边线。</p>
      */
     public float cardRadiusMm = 3.18f;
+    /**
+     * 是否把刷卡「超级岛」（HyperOS 焦点通知）改写为 iOS 灵动岛样式。
+     *
+     * <p>岛的内容由 App 以 RemoteViews 形式投递（extras key {@code miui.focus.rv}），
+     * 模块在 {@code NotificationManager#notify} 前改写该对象：
+     * 主标题转白、副标题 60% 白、隐藏右侧图标与按钮，得到 iOS 的紧凑观感。</p>
+     */
+    public boolean islandStyle = true;
+    /**
+     * 是否启用 iOS 刷卡动画。
+     *
+     * <p>1.5.5 起动画一律由 SystemUI 侧的自绘窗口播放
+     * （进入 → 卡片翻转 → 打勾/打叉 → 金额 + 余额 → 消失），
+     * 不再改写通知的 RemoteViews。本开关与 {@link #islandOverlay} 是「或」的关系。</p>
+     */
+    public boolean islandAnimation = true;
+    /**
+     * 是否启用 SystemUI 侧的高保真刷卡动画（方案 B）。
+     *
+     * <p>由 SystemUI 进程用自绘 View 播放「卡片翻转 → 勾/叉 → 金额 + 余额」，
+     * 因此能盖在锁屏之上。关闭后 SystemUI 侧不响应动画请求。</p>
+     */
+    public boolean islandOverlay = true;
+    /**
+     * 是否隐藏系统自带的岛上动画（1.5.6 起默认开启）。
+     *
+     * <p>开启后，模块会在投递通知前把 {@code miui.focus.*} 系列 extras 连同
+     * {@code param_island} 一并摘掉，于是 SystemUI 不会再播它自己的岛动画，
+     * 画面上只剩我们的 iOS 动画。</p>
+     *
+     * <p>1.5.6 起默认<b>打开</b>：用户实机反馈「原有系统超级岛还显示」，
+     * 与我们的 iOS 动画重叠出现两套岛。此前默认关闭是因为担心「摘掉系统岛后
+     * 我们的动画没显示，就什么都没有」—— 现在窗口轮询 + 绘制帧探测已能稳定
+     * 让动画出现，因此改为默认摘除系统岛。</p>
+     */
+    public boolean hideSystemIsland = true;
+    /**
+     * 用户在设置里指定的卡面（按卡名）。
+     *
+     * <p>空字符串表示<b>自动</b>：跟随小米智能卡最近一次显示的卡面。
+     * 有多张卡、且希望动画固定显示某一张时，在设置页点「选择卡面」切换。</p>
+     */
+    public String facePickName = "";
 
     public static Config defaults() {
         return new Config();
@@ -112,6 +161,12 @@ public final class Config {
             c.smartTargets = prefs.getBoolean(KEY_SMART_TARGETS, c.smartTargets);
             c.rimStroke = prefs.getBoolean(KEY_RIM_STROKE, c.rimStroke);
             c.cardRadiusMm = clamp(prefs.getFloat(KEY_CARD_RADIUS_MM, c.cardRadiusMm), 0f, 12f);
+            c.islandStyle = prefs.getBoolean(KEY_ISLAND_STYLE, c.islandStyle);
+            c.islandAnimation = prefs.getBoolean(KEY_ISLAND_ANIMATION, c.islandAnimation);
+            c.islandOverlay = prefs.getBoolean(KEY_ISLAND_OVERLAY, c.islandOverlay);
+            c.hideSystemIsland = prefs.getBoolean(KEY_HIDE_SYSTEM_ISLAND, c.hideSystemIsland);
+            String picked = prefs.getString(KEY_FACE_PICK_NAME, c.facePickName);
+            c.facePickName = picked == null ? "" : picked;
         } catch (Throwable ignored) {
             // 配置损坏时使用默认值，保证被 Hook 的应用不会因此崩溃
         }
@@ -140,6 +195,11 @@ public final class Config {
                 + ", glassOverlay=" + glassOverlay
                 + ", smartTargets=" + smartTargets
                 + ", rimStroke=" + rimStroke
-                + ", cardRadius=" + cardRadiusMm + "mm" + '}';
+                + ", cardRadius=" + cardRadiusMm + "mm"
+                + ", islandStyle=" + islandStyle
+                + ", islandAnimation=" + islandAnimation
+                + ", islandOverlay=" + islandOverlay
+                + ", hideSystemIsland=" + hideSystemIsland
+                + ", facePickName='" + facePickName + '\'' + '}';
     }
 }

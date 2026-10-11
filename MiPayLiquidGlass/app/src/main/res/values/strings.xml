@@ -38,10 +38,41 @@
     <string name="opt_rim_stroke_desc">给每块玻璃描一圈白色亮边。默认关闭 —— 页面元素多时，大量亮边叠加会形成满屏线条</string>
     <string name="opt_card_radius">卡面圆角</string>
     <string name="opt_card_radius_desc">卡面玻璃罩的圆角，按屏幕物理尺寸换算。规格为 3.18mm（1/8 英寸）时与卡面严丝合缝</string>
+    <string name="opt_island">iOS 超级岛样式</string>
+    <string name="opt_island_desc">把刷卡「超级岛」（HyperOS 焦点通知）改写为 iOS 灵动岛观感：标题转白、副标题 60% 白、隐藏右侧图标与按钮</string>
+    <string name="opt_island_anim">iOS 刷卡动画</string>
+    <string name="opt_island_anim_desc">刷卡时播放 iOS 风格动画：从屏幕顶部探出（探出同时卡片即翻转）→ 白色对勾/叉描线 → 交易金额与余额 → 缩回顶部。正面绘制真实卡面、背面为纯黑卡，由 SystemUI 自绘，锁屏同样可见</string>
+    <string name="opt_island_overlay">iOS 刷卡动画（SystemUI）</string>
+    <string name="opt_island_overlay_desc">由 SystemUI 用系统窗口自绘高保真动画，能盖在锁屏之上。需要在 LSPosed 中把「系统界面」也加入本模块作用域</string>
+    <string name="btn_preview_island_ok">预览成功动画（App 内）</string>
+    <string name="btn_preview_island_fail">预览失败动画（App 内）</string>
+    <string name="btn_preview_island_sysui">模拟刷卡成功（SystemUI 岛）</string>
+    <string name="btn_preview_island_sysui_fail">模拟刷卡失败（SystemUI 岛）</string>
+    <string name="preview_island_sent">已发送「刷卡成功」给 SystemUI。若顶部没有出现动画：请到「LSPosed 管理器 → 本模块 → 作用域」勾选「系统界面」，再点「重启 SystemUI」；并确认屏幕已点亮</string>
+    <string name="preview_island_sent_fail">已发送「刷卡失败」给 SystemUI。若顶部没有出现动画，请先确认屏幕已点亮，并检查 SystemUI 作用域是否已勾选</string>
+    <string name="island_scope_hint">⚠️ 刷卡动画由 SystemUI 绘制，必须在 LSPosed 作用域里勾选「系统界面（com.android.systemui）」，否则点了预览也不会有任何反应。测试时请先点亮屏幕（锁屏界面同样可以看到动画）。\n\n⚠️ 动画代码跑在 SystemUI 进程里，而 SystemUI 常年不重启：装完新版本 APK 后，请点上面的「重启 SystemUI」让新代码生效，否则你看到的仍是旧动画。</string>
+    <string name="opt_hide_system_island">隐藏系统岛动画</string>
+    <string name="opt_hide_system_island_desc">按前缀摘掉焦点通知的全部岛参数（miui.focus.* 与 param_island），系统不再播它自己的超级岛，只保留我们的 iOS 动画。默认开启；若关闭会同时出现两套岛</string>
+
+    <string name="btn_pick_face">选择卡面</string>
+    <string name="opt_pick_face_desc">点上面的按钮会列出已识别到的卡面，直接看图选择动画要显示哪一张。卡名与图片来自小米智能卡自己的卡片列表，需要先在小米智能卡里看到过卡片列表。</string>
+    <string name="pick_face_title">选择动画显示的卡面</string>
+    <string name="pick_face_button">选择卡面（当前：%1$s）</string>
+    <string name="pick_face_auto">自动（跟随主卡）</string>
+    <string name="pick_face_current">当前卡面：%1$s</string>
+    <string name="pick_face_summary">已识别到 %1$d 张卡面，点上面的按钮可看图选择</string>
+    <string name="pick_face_none">还没识别到任何卡面。请先打开小米智能卡、看到卡片列表，再回来点这个按钮。</string>
+    <string name="pick_face_found">已识别到 %1$d 张卡面</string>
+    <string name="pick_face_querying">正在向小米智能卡查询已识别的卡片…若一直没有结果，请先打开一次小米智能卡</string>
+    <string name="pick_face_requesting">正在向小米智能卡查询已识别的卡片…</string>
 
     <string name="root_hint">修改配置后，目标应用需要重新启动才会加载新设置。这里用 Root 权限强制停止并重新打开小米智能卡，比手动去系统设置里操作更省事。</string>
     <string name="btn_root_check">检测 Root 权限</string>
     <string name="btn_root_restart">一键重启小米智能卡</string>
+    <string name="btn_restart_systemui">重启 SystemUI</string>
+    <string name="root_systemui_restarting">正在重启 SystemUI…</string>
+    <string name="root_systemui_done">已完成：SystemUI 已重启（状态栏会短暂消失几秒后恢复）</string>
+    <string name="root_systemui_failed">重启 SystemUI 失败，请确认已授予 Root 权限</string>
     <string name="root_idle">Root 状态：未检测</string>
     <string name="root_checking">正在请求 Root 权限，请在弹窗中允许…</string>
     <string name="root_available">Root 状态：已获取（uid=0）</string>

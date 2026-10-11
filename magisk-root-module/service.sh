@@ -31,6 +31,16 @@ if [ "$BLUR" != "1" ]; then
     echo "[service] WARN: 系统未开启窗口模糊，LSPosed 模块将退化为静态玻璃材质" >> "$LOG"
 fi
 
+# ---------- 校验并补齐超级岛（焦点通知）能力 ----------
+# 小米智能卡上岛前会读取 persist.sys.feature.island；缺失会导致刷卡不上岛。
+ISLAND=$(getprop persist.sys.feature.island)
+if [ "$ISLAND" != "1" ]; then
+    resetprop persist.sys.feature.island 1 >> "$LOG" 2>&1
+    echo "[service] persist.sys.feature.island was '${ISLAND:-<unset>}', forced to 1" >> "$LOG"
+else
+    echo "[service] persist.sys.feature.island=1 ok" >> "$LOG"
+fi
+
 # ---------- 自动安装随包 APK ----------
 if [ -f "$APK" ] && [ -f "$SENTINEL" ] && [ -n "$(pm path $PKG 2>/dev/null)" ]; then
     # 已安装且已打过标记，且 APK 未发生变化 -> 跳过

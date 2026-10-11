@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  卡片翻转「入场」半程：横向压扁收拢。
+  RemoteViews 只能实例化白名单控件，无法执行真正的 3D 变换，
+  因此用 scaleX 1→0 模拟 Y 轴翻转的前半程。
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/decelerate_interpolator">
+    <scale
+        android:duration="240"
+        android:fromXScale="1.0"
+        android:pivotX="50%"
+        android:toXScale="0.0" />
+    <alpha
+        android:duration="240"
+        android:fromAlpha="1.0"
+        android:toAlpha="0.45" />
+</set>

@@ -18,6 +18,8 @@ public final class RootHelper {
     public static final String PKG_SMART_CARD = "com.miui.tsmclient";
     /** 小米钱包。 */
     public static final String PKG_MIPAY_WALLET = "com.mipay.wallet";
+    /** SystemUI（超级岛 / 状态栏宿主）。 */
+    public static final String PKG_SYSTEM_UI = "com.android.systemui";
 
     /** 命令执行结果。 */
     public static final class Result {
@@ -93,6 +95,24 @@ public final class RootHelper {
             return result;
         }
         Result fallback = exec("pkill -f " + packageName);
+        return fallback.success ? fallback : result;
+    }
+
+    /**
+     * 重启 SystemUI。
+     *
+     * <p>SystemUI 被终止后由系统自动重新拉起，所以「杀掉即重启」。
+     * 改完超级岛 / 状态栏相关的模块配置后需要它重新加载。</p>
+     *
+     * <p>依次尝试 {@code pkill -f} 与 {@code killall}：不同 ROM 对两者的可用性不同。
+     * 注意 SystemUI 重启期间状态栏会短暂消失几秒，属正常现象。</p>
+     */
+    public static Result restartSystemUi() {
+        Result result = exec("pkill -f " + PKG_SYSTEM_UI);
+        if (result.success) {
+            return result;
+        }
+        Result fallback = exec("killall " + PKG_SYSTEM_UI);
         return fallback.success ? fallback : result;
     }
 }
