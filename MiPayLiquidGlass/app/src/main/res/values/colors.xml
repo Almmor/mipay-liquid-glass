@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#0B1020</color>
+
+    <color name="glass_bg_top">#FF101935</color>
+    <color name="glass_bg_bottom">#FF060A16</color>
+
+    <color name="panel_fill">#1FFFFFFF</color>
+    <color name="panel_stroke">#38FFFFFF</color>
+
+    <color name="text_primary">#F2FFFFFF</color>
+    <color name="text_secondary">#A6FFFFFF</color>
+    <color name="text_tertiary">#66FFFFFF</color>
+
+    <color name="accent">#FF7FB2FF</color>
+    <color name="accent_soft">#337FB2FF</color>
+
+    <color name="card_sheen_top">#59FFFFFF</color>
+    <color name="card_sheen_bottom">#12FFFFFF</color>
+</resources>

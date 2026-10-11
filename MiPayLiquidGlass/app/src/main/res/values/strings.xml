@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">小米智能卡 · 液态玻璃</string>
+    <string name="xposed_description">为小米智能卡 / 小米钱包的刷卡与支付页面注入液态玻璃（Liquid Glass）材质：窗口背景模糊、玻璃卡片、折射色散高光与边缘柔光，并完整保留设备卡面。</string>
+
+    <string name="header_title">液态玻璃</string>
+    <string name="header_subtitle">Mi Pay Liquid Glass · 刷卡页面视觉增强</string>
+    <string name="badge">LSPosed 模块 · 需在管理器中勾选「小米智能卡」</string>
+
+    <string name="panel_material">玻璃材质</string>
+    <string name="panel_advanced">高级渲染</string>
+    <string name="panel_cardface">卡面保护</string>
+    <string name="panel_root">Root 操作</string>
+    <string name="panel_preview">效果预览</string>
+
+    <string name="opt_enable">启用液态玻璃</string>
+    <string name="opt_enable_desc">总开关，关闭后立即恢复系统原样</string>
+    <string name="opt_blur">背景模糊半径</string>
+    <string name="opt_tint">玻璃染色强度</string>
+    <string name="opt_corner">玻璃圆角半径</string>
+
+    <string name="opt_refraction">折射与色散高光</string>
+    <string name="opt_refraction_desc">AGSL 着色器绘制玻璃边缘折射与彩虹色散（需 Android 13+）</string>
+    <string name="opt_flow">流光动效</string>
+    <string name="opt_flow_desc">玻璃表面缓慢流动的镜面高光（会增加少量耗电）</string>
+    <string name="opt_deep">深度美化</string>
+    <string name="opt_deep_desc">将纯色背景的容器也转换为玻璃材质</string>
+    <string name="opt_immersive">沉浸模式</string>
+    <string name="opt_immersive_desc">让应用根背景半透明，透出被模糊的桌面 / 上层内容</string>
+
+    <string name="opt_keep_face">保留设备卡面</string>
+    <string name="opt_keep_face_desc">识别为卡面 / 图片素材的视图（ImageView、Bitmap 背景、自定义 Drawable、资源名含 card 等）完全不作修改</string>
+    <string name="opt_smart_targets">精准适配小米智能卡</string>
+    <string name="opt_smart_targets_desc">按反编译得到的类名白名单直接命中刷卡页与卡面下方的自绘控件（CardStackLayout、SwitchCardFingerLayer、MiPayCardItemView 等）。关闭后刷卡页几乎不会有任何效果</string>
+    <string name="opt_overlay">卡面叠加玻璃镜面</string>
+    <string name="opt_overlay_desc">在保留的卡面之上叠一层折射高光与流光，卡面图案依然清晰可见</string>
+    <string name="opt_rim_stroke">玻璃边缘亮线</string>
+    <string name="opt_rim_stroke_desc">给每块玻璃描一圈白色亮边。默认关闭 —— 页面元素多时，大量亮边叠加会形成满屏线条</string>
+    <string name="opt_card_radius">卡面圆角</string>
+    <string name="opt_card_radius_desc">卡面玻璃罩的圆角，按屏幕物理尺寸换算。规格为 3.18mm（1/8 英寸）时与卡面严丝合缝</string>
+
+    <string name="root_hint">修改配置后，目标应用需要重新启动才会加载新设置。这里用 Root 权限强制停止并重新打开小米智能卡，比手动去系统设置里操作更省事。</string>
+    <string name="btn_root_check">检测 Root 权限</string>
+    <string name="btn_root_restart">一键重启小米智能卡</string>
+    <string name="root_idle">Root 状态：未检测</string>
+    <string name="root_checking">正在请求 Root 权限，请在弹窗中允许…</string>
+    <string name="root_available">Root 状态：已获取（uid=0）</string>
+    <string name="root_denied">Root 状态：未授权，或设备未 Root</string>
+    <string name="root_restarting">正在强制停止小米智能卡…</string>
+    <string name="root_done">已完成：小米智能卡已重新打开，新配置立即生效</string>
+    <string name="root_stopped">已强制停止小米智能卡，请手动重新打开</string>
+    <string name="root_target_missing">未找到小米智能卡（com.miui.tsmclient），请确认已安装</string>
+
+    <string name="preview_card_name">京津冀互联互通卡</string>
+    <string name="preview_card_balance">¥ 128.50</string>
+    <string name="preview_card_no">3104 **** **** 8821</string>
+    <string name="preview_hint">以上为材质示意图，实际效果取决于机型与系统模糊支持</string>
+
+    <string name="unit_dp">%1$d dp</string>
+    <string name="unit_alpha">%1$d / 200</string>
+    <string name="unit_mm">%1$s mm</string>
+
+    <string name="status_template">运行环境：Android API %1$d　|　窗口模糊：%2$s　|　AGSL 折射：%3$s</string>
+    <string name="yes">可用</string>
+    <string name="no">不可用</string>
+    <string name="footer">提示：修改任意选项后，建议点击上方「一键重启小米智能卡」使其立即生效</string>
+</resources>

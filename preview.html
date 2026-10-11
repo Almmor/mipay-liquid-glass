@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小米智能卡 · 液态玻璃 效果预览</title>
+<style>
+  :root{
+    --text:#f2f5ff;
+    --text-dim:rgba(242,245,255,.62);
+    --text-faint:rgba(242,245,255,.38);
+    --accent:#7fb2ff;
+    --radius-card:24px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei","PingFang SC","Microsoft YaHei",
+                -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    color:var(--text);
+    background:#05070f;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+
+  /* ---------- 背景：彩色光斑，用来展示玻璃的模糊与折射 ---------- */
+  .ambient{position:fixed;inset:0;z-index:0;overflow:hidden;}
+  .ambient i{
+    position:absolute;display:block;border-radius:50%;filter:blur(70px);opacity:.85;
+  }
+  .ambient i:nth-child(1){width:46vmax;height:46vmax;left:-12vmax;top:-14vmax;
+    background:radial-gradient(circle at 35% 35%,#4f7cff,#1b2f8f 60%,transparent 72%);}
+  .ambient i:nth-child(2){width:38vmax;height:38vmax;right:-10vmax;top:6vmax;
+    background:radial-gradient(circle at 40% 40%,#ff5f9e,#8d1f5a 60%,transparent 72%);}
+  .ambient i:nth-child(3){width:42vmax;height:42vmax;left:22vmax;bottom:-18vmax;
+    background:radial-gradient(circle at 45% 45%,#00d6c0,#065a58 60%,transparent 72%);}
+  .ambient i:nth-child(4){width:26vmax;height:26vmax;right:18vmax;bottom:2vmax;
+    background:radial-gradient(circle at 45% 45%,#ffc861,#8a5a06 60%,transparent 72%);}
+  .ambient::after{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(5,7,15,.35),rgba(5,7,15,.78));
+  }
+
+  /* ---------- 页面骨架 ---------- */
+  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:56px 24px 90px;}
+
+  header.top{text-align:center;margin-bottom:34px;}
+  .eyebrow{
+    display:inline-block;font-size:12px;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--accent);border:1px solid rgba(127,178,255,.36);background:rgba(127,178,255,.10);
+    padding:7px 16px;border-radius:999px;margin-bottom:20px;
+  }
+  h1{margin:0 0 12px;font-size:clamp(26px,4.2vw,42px);font-weight:800;letter-spacing:-.02em;}
+  h1 span{
+    background:linear-gradient(100deg,#ffffff 10%,#a9c9ff 45%,#8ef0dd 90%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  header.top p{margin:0 auto;max-width:620px;color:var(--text-dim);font-size:15px;line-height:1.75;}
+
+  /* ---------- 切换开关 ---------- */
+  .switch-row{display:flex;justify-content:center;margin:32px 0 40px;}
+  .switcher{
+    display:inline-flex;gap:4px;padding:5px;border-radius:999px;
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  }
+  .switcher button{
+    appearance:none;border:0;cursor:pointer;font:inherit;font-size:14px;font-weight:600;
+    padding:11px 26px;border-radius:999px;color:var(--text-dim);background:transparent;
+    transition:.25s ease;
+  }
+  .switcher button.on{color:#08122b;background:linear-gradient(135deg,#ffffff,#c6dcff);
+    box-shadow:0 6px 18px rgba(127,178,255,.35);}
+  .switcher button:not(.on):hover{color:var(--text);}
+
+  /* ---------- 舞台 ---------- */
+  .stage{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:52px;align-items:start;}
+  @media (max-width:900px){.stage{grid-template-columns:1fr;justify-items:center;gap:40px;}}
+
+  /* ---------- 手机 ---------- */
+  .phone{
+    width:340px;border-radius:46px;padding:12px;
+    background:linear-gradient(160deg,#2a2f3d,#0d1017);
+    box-shadow:0 40px 90px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.10);
+    position:relative;
+  }
+  .phone::after{
+    content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:16px;
+    width:118px;height:5px;border-radius:3px;background:rgba(255,255,255,.30);
+  }
+  .screen{
+    border-radius:36px;overflow:hidden;position:relative;
+    height:660px;background:#0a0e18;
+  }
+  /* 手机屏幕内也铺一层彩色内容，让玻璃有东西可以模糊 */
+  .screen-bg{position:absolute;inset:0;overflow:hidden;}
+  .screen-bg i{position:absolute;display:block;border-radius:50%;filter:blur(46px);}
+  .screen-bg i:nth-child(1){width:300px;height:300px;left:-90px;top:40px;
+    background:radial-gradient(circle at 40% 40%,#5b83ff,#152a7a 70%,transparent 76%);}
+  .screen-bg i:nth-child(2){width:260px;height:260px;right:-80px;top:210px;
+    background:radial-gradient(circle at 40% 40%,#ff5f9e,#7d1a52 70%,transparent 76%);}
+  .screen-bg i:nth-child(3){width:300px;height:300px;left:-40px;bottom:-70px;
+    background:radial-gradient(circle at 40% 40%,#12c9b4,#0a4a45 70%,transparent 76%);}
+
+  .screen-inner{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;
+    padding:0 16px;}
+
+  /* 状态栏 */
+  .statusbar{display:flex;justify-content:space-between;align-items:center;
+    height:44px;font-size:12.5px;font-weight:600;color:rgba(255,255,255,.92);padding:0 6px;}
+  .statusbar .icons{display:flex;gap:5px;align-items:center;}
+  .statusbar .icons b{display:block;width:15px;height:10px;border-radius:2px;
+    background:rgba(255,255,255,.85);}
+  .statusbar .icons b:nth-child(2){width:11px;}
+
+  /* 标题 */
+  .pagetitle{padding:6px 6px 18px;}
+  .pagetitle h2{margin:0;font-size:19px;font-weight:700;letter-spacing:.01em;}
+  .pagetitle small{display:block;margin-top:5px;font-size:12px;color:var(--text-faint);}
+
+  /* 玻璃通用 */
+  .surface{
+    position:relative;border-radius:var(--radius-card);overflow:hidden;
+    background:linear-gradient(158deg,rgba(255,255,255,.36),rgba(255,255,255,.10) 46%,rgba(214,230,255,.17));
+    backdrop-filter:blur(22px) saturate(180%);
+    -webkit-backdrop-filter:blur(22px) saturate(180%);
+    border:1px solid rgba(255,255,255,.42);
+    box-shadow:0 14px 34px rgba(2,6,20,.42),inset 0 1px 0 rgba(255,255,255,.62);
+  }
+  /* 顶部膨光 */
+  .surface::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 78% at 16% -6%,rgba(255,255,255,.58),transparent 56%);
+  }
+  /* 镜面流光 */
+  .surface::after{
+    content:"";position:absolute;top:-70%;left:-45%;width:46%;height:240%;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.50),transparent);
+    transform:rotate(16deg);animation:sweep 6.5s linear infinite;
+  }
+  @keyframes sweep{0%{left:-55%}100%{left:135%}}
+  /* 色散彩边 */
+  .chroma{
+    position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,120,120,.30),
+      inset 1.5px 1.5px 0 rgba(255,150,150,.40),
+      inset -1.5px -1.5px 0 rgba(120,180,255,.42);
+  }
+
+  /* 原生（对照组）样式 */
+  .phone.native .surface{
+    backdrop-filter:none;-webkit-backdrop-filter:none;
+    background:#2f343d;border:1px solid #3c424d;box-shadow:none;border-radius:20px;
+  }
+  .phone.native .surface::before,
+  .phone.native .surface::after,
+  .phone.native .chroma{display:none;}
+  .phone.native .face-glass,
+  .phone.native .face-badge{display:none;}
+  .phone.native .slot{border-color:#3c424d !important;background:#2b303a !important;}
+  .phone.native .glow{display:none;}
+  .phone.native .dialog{background:#22262e !important;border-color:#333941 !important;}
+  .phone.native .dialog .chroma{display:none;}
+
+  /* ---------- 设备卡面：图案本体由厂商提供，两种模式下都保持原样 ---------- */
+  .card-face{
+    position:relative;margin:0 0 18px;border-radius:26px;overflow:hidden;
+    height:198px;box-shadow:0 18px 42px rgba(2,6,20,.5);isolation:isolate;
+  }
+  /* 卡面图案本体 —— 代表设备自带卡面素材，模块永远不会改动它 */
+  .face-art{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(120% 100% at 12% 0%,rgba(255,255,255,.32),transparent 55%),
+      linear-gradient(135deg,#1f4fd8 0%,#6a3bd6 42%,#d63b8f 78%,#ff7a4d 100%);
+  }
+  .face-art .grid{
+    position:absolute;inset:0;opacity:.20;
+    background-image:linear-gradient(rgba(255,255,255,.55) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.55) 1px,transparent 1px);
+    background-size:26px 26px;
+  }
+  .face-art .blob{position:absolute;border-radius:50%;filter:blur(6px);}
+  .face-art .b1{width:190px;height:190px;right:-56px;top:-70px;
+    background:radial-gradient(circle at 40% 40%,rgba(255,255,255,.44),transparent 68%);}
+  .face-art .b2{width:160px;height:160px;right:-14px;bottom:-72px;
+    background:radial-gradient(circle at 40% 40%,rgba(120,240,220,.40),transparent 70%);}
+  .face-art .ring{position:absolute;left:-34px;bottom:-64px;width:180px;height:180px;
+    border-radius:50%;border:1.5px solid rgba(255,255,255,.34);}
+  .face-art .ring.r2{left:-8px;bottom:-42px;width:214px;height:214px;opacity:.5;}
+
+  .face-content{position:absolute;inset:0;padding:20px;display:flex;flex-direction:column;z-index:2;}
+
+  /* 玻璃镜面叠加层 —— 模块额外叠上去的一层，只加质感、不遮图案 */
+  .face-glass{
+    position:absolute;inset:0;z-index:3;pointer-events:none;border-radius:inherit;
+    backdrop-filter:saturate(160%);
+    -webkit-backdrop-filter:saturate(160%);
+    background:linear-gradient(160deg,rgba(255,255,255,.20),rgba(255,255,255,.03) 46%,rgba(255,255,255,.11));
+    box-shadow:
+      inset 0 0 0 1.4px rgba(255,255,255,.55),
+      inset 1.6px 1.6px 0 rgba(255,150,150,.42),
+      inset -1.6px -1.6px 0 rgba(140,190,255,.45),
+      inset 0 -34px 46px rgba(4,10,26,.30);
+  }
+  .face-glass::before{
+    content:"";position:absolute;top:-70%;left:-45%;width:46%;height:240%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
+    transform:rotate(16deg);animation:sweep 6.5s linear infinite;
+  }
+  .face-glass::after{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(120% 80% at 16% -6%,rgba(255,255,255,.42),transparent 56%);
+  }
+  .face-badge{
+    position:absolute;right:14px;top:14px;z-index:4;font-size:10.5px;font-weight:700;
+    padding:4px 10px;border-radius:999px;color:#08122b;
+    background:linear-gradient(135deg,rgba(255,255,255,.96),rgba(190,220,255,.86));
+    box-shadow:0 4px 12px rgba(0,20,60,.35);
+  }
+
+  .card-name{font-size:13.5px;font-weight:600;letter-spacing:.02em;color:rgba(255,255,255,.96);
+    text-shadow:0 1px 8px rgba(0,20,60,.35);}
+  .card-balance{margin-top:10px;font-size:31px;font-weight:800;letter-spacing:-.02em;
+    text-shadow:0 2px 14px rgba(0,20,60,.45);}
+  .card-balance small{font-size:15px;font-weight:600;opacity:.8;margin-right:3px;}
+  .card-no{margin-top:8px;font-size:12px;letter-spacing:.18em;color:rgba(255,255,255,.80);
+    font-variant-numeric:tabular-nums;text-shadow:0 1px 8px rgba(0,20,60,.35);}
+  .card-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;}
+  .card-tag{font-size:11px;padding:4px 10px;border-radius:999px;
+    background:rgba(255,255,255,.20);border:1px solid rgba(255,255,255,.34);}
+  .waves{display:flex;gap:3px;align-items:flex-end;height:16px;}
+  .waves span{display:block;width:3px;border-radius:2px;background:rgba(255,255,255,.72);}
+  .waves span:nth-child(1){height:7px}
+  .waves span:nth-child(2){height:11px}
+  .waves span:nth-child(3){height:16px}
+
+  /* 快捷操作 */
+  .actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+  .action{padding:14px 6px;text-align:center;border-radius:20px;}
+  .action .ic{width:26px;height:26px;margin:0 auto 8px;border-radius:9px;
+    background:linear-gradient(140deg,rgba(255,255,255,.85),rgba(190,220,255,.45));
+    box-shadow:0 3px 10px rgba(0,20,60,.35);}
+  .action .lb{font-size:11.5px;color:rgba(255,255,255,.9);font-weight:600;}
+
+  /* 列表 */
+  .slot{padding:15px 16px;border-radius:20px;margin-bottom:10px;display:flex;
+    align-items:center;justify-content:space-between;}
+  .slot .left{display:flex;align-items:center;gap:11px;}
+  .slot .dot{width:30px;height:30px;border-radius:11px;
+    background:linear-gradient(140deg,rgba(255,255,255,.78),rgba(150,195,255,.35));
+    box-shadow:0 2px 8px rgba(0,20,60,.3);}
+  .slot .tt{font-size:13px;font-weight:600;}
+  .slot .ss{font-size:11px;color:var(--text-faint);margin-top:2px;}
+  .slot .go{font-size:11.5px;color:var(--text-faint);}
+
+  /* 悬浮支付确认弹窗 */
+  .dialog{
+    position:absolute;left:18px;right:18px;bottom:74px;padding:18px;border-radius:24px;
+    background:linear-gradient(158deg,rgba(255,255,255,.42),rgba(255,255,255,.14) 50%,rgba(200,225,255,.22));
+    backdrop-filter:blur(30px) saturate(190%);
+    -webkit-backdrop-filter:blur(30px) saturate(190%);
+    border:1.4px solid rgba(255,255,255,.55);
+    box-shadow:0 22px 50px rgba(2,6,20,.55),inset 0 1px 0 rgba(255,255,255,.72);
+    z-index:6;
+  }
+  .dialog .dlg-t{font-size:14px;font-weight:700;}
+  .dialog .dlg-s{font-size:11.5px;color:var(--text-dim);margin-top:5px;line-height:1.6;}
+  .dialog .dlg-a{margin-top:14px;display:flex;gap:9px;}
+  .dialog .btn{flex:1;text-align:center;padding:11px;border-radius:15px;font-size:12.5px;font-weight:700;}
+  .dialog .btn.primary{background:linear-gradient(135deg,#ffffff,#bcd8ff);color:#08122b;
+    box-shadow:0 8px 20px rgba(127,178,255,.35);}
+  .dialog .btn.ghost{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);
+    color:rgba(255,255,255,.9);}
+
+  /* ---------- 右侧拆解 ---------- */
+  .panel-title{font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--accent);margin:0 0 8px;}
+  .panel h3{margin:0 0 14px;font-size:22px;font-weight:750;letter-spacing:-.01em;}
+  .panel p{margin:0 0 22px;color:var(--text-dim);font-size:14px;line-height:1.8;}
+
+  .layers{list-style:none;margin:0;padding:0;display:grid;gap:10px;}
+  .layers li{
+    display:grid;grid-template-columns:34px 1fr;gap:14px;align-items:center;
+    padding:14px 16px;border-radius:16px;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);
+  }
+  .layers .swatch{width:34px;height:34px;border-radius:11px;position:relative;overflow:hidden;
+    border:1px solid rgba(255,255,255,.35);}
+  .layers .n{font-size:13.5px;font-weight:650;}
+  .layers .d{font-size:11.5px;color:var(--text-faint);margin-top:3px;line-height:1.5;}
+
+  .l1{background:linear-gradient(180deg,#ffffff5c,#d7e6ff1f);}
+  .l2{background:radial-gradient(120% 90% at 20% 0%,#ffffffa6,transparent 60%),#ffffff14;}
+  .l3{background:linear-gradient(115deg,transparent 30%,#ffffffb0 50%,transparent 70%),#ffffff14;}
+  .l4{background:linear-gradient(180deg,#ffffff10,#06102480);}
+  .l5{background:conic-gradient(from 200deg,#ff7a7a66,#ffffff33,#7ab4ff66,#ff7a7a66);}
+  .l6{background:linear-gradient(135deg,#ffffffd9,#ffffff2e);}
+
+  .note{margin-top:26px;padding:16px 18px;border-radius:16px;font-size:12.5px;line-height:1.75;
+    color:var(--text-dim);background:rgba(127,178,255,.08);border:1px solid rgba(127,178,255,.22);}
+  .note b{color:var(--accent);}
+
+  footer{margin-top:56px;text-align:center;font-size:12px;color:var(--text-faint);line-height:1.9;}
+</style>
+</head>
+<body>
+
+<div class="ambient"><i></i><i></i><i></i><i></i></div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Mi Pay Liquid Glass</div>
+    <h1><span>小米智能卡 · 刷卡页面液态玻璃美化</span></h1>
+    <p>这是一个可视化预览：左侧为改装后的刷卡页面。切换开关可以对比「系统原生」与
+       「注入液态玻璃后」的差异。请注意 <b style="color:#a9c9ff">卡面图案两种模式下完全一致</b> ——
+       模块只在其上叠了一层玻璃镜面，从不改动卡面素材。</p>
+  </header>
+
+  <div class="switch-row">
+    <div class="switcher">
+      <button id="btnNative" type="button">系统原生</button>
+      <button id="btnLiquid" class="on" type="button">液态玻璃（保留卡面）</button>
+    </div>
+  </div>
+
+  <div class="stage">
+
+    <!-- ============ 手机预览 ============ -->
+    <div class="phone liquid" id="phone">
+      <div class="screen">
+        <div class="screen-bg"><i></i><i></i><i></i></div>
+        <div class="screen-inner">
+
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="icons"><b></b><b></b><span style="margin-left:2px">100%</span></span>
+          </div>
+
+          <div class="pagetitle">
+            <h2>小米智能卡</h2>
+            <small>默认公交卡 · 双击电源键快速刷卡</small>
+          </div>
+
+          <!-- 设备卡面：图案由厂商提供，模块只在其上叠一层玻璃镜面，从不改动图案本身 -->
+          <div class="card-face">
+            <div class="face-art">
+              <span class="grid"></span>
+              <span class="blob b1"></span>
+              <span class="blob b2"></span>
+              <span class="ring r2"></span>
+              <span class="ring"></span>
+            </div>
+            <div class="face-content">
+              <div class="card-name">京津冀互联互通卡</div>
+              <div class="card-balance"><small>¥</small>128.50</div>
+              <div class="card-no">3104 **** **** 8821</div>
+              <div class="card-foot">
+                <span class="card-tag">默认刷卡卡种</span>
+                <span class="waves"><span></span><span></span><span></span></span>
+              </div>
+            </div>
+            <div class="face-glass"></div>
+            <div class="face-badge">卡面已保留</div>
+          </div>
+
+          <!-- 快捷操作 -->
+          <div class="actions">
+            <div class="action surface"><div class="chroma"></div>
+              <div class="ic"></div><div class="lb">刷卡</div>
+            </div>
+            <div class="action surface"><div class="chroma"></div>
+              <div class="ic"></div><div class="lb">充值</div>
+            </div>
+            <div class="action surface"><div class="chroma"></div>
+              <div class="ic"></div><div class="lb">乘车记录</div>
+            </div>
+          </div>
+
+          <!-- 列表 -->
+          <div class="slot surface"><div class="chroma"></div>
+            <div class="left"><div class="dot"></div>
+              <div><div class="tt">智能选卡</div><div class="ss">靠近闸机自动选择可用卡</div></div>
+            </div><div class="go">已开启</div>
+          </div>
+          <div class="slot surface"><div class="chroma"></div>
+            <div class="left"><div class="dot"></div>
+              <div><div class="tt">交易记录</div><div class="ss">最近 30 天 · 18 笔</div></div>
+            </div><div class="go">查看</div>
+          </div>
+
+          <!-- 悬浮确认弹窗 -->
+          <div class="dialog">
+            <div class="chroma"></div>
+            <div class="dlg-t">确认使用交通卡支付</div>
+            <div class="dlg-s">闸机请求扣款 ¥2.00，请将手机背部靠近感应区</div>
+            <div class="dlg-a">
+              <div class="btn ghost">取消</div>
+              <div class="btn primary">确认支付</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 右侧说明 ============ -->
+    <div class="panel">
+      <p class="panel-title">Liquid Glass 材质分层</p>
+      <h3>六个图层叠出「像玻璃」而非「像半透明白块」</h3>
+      <p>模块里的 <code>LiquidGlassDrawable</code> 按下列顺序自下而上绘制。
+         前四层是 Canvas 渐变（Android 8+ 全版本可用），
+         第五层是 AGSL 着色器（Android 13+），第六层负责收口。</p>
+
+      <ul class="layers">
+        <li><div class="swatch l1"></div>
+          <div><div class="n">1 · 基础染色</div>
+            <div class="d">自上而下由亮到暗的半透明蓝白渐变，决定玻璃的「底色」</div></div></li>
+        <li><div class="swatch l2"></div>
+          <div><div class="n">2 · 顶部膨光</div>
+            <div class="d">左上角径向高光，制造玻璃上表面的体积感</div></div></li>
+        <li><div class="swatch l3"></div>
+          <div><div class="n">3 · 镜面流光</div>
+            <div class="d">沿对角线扫过的柔和亮带，对应「液态」的流动感</div></div></li>
+        <li><div class="swatch l4"></div>
+          <div><div class="n">4 · 底部内阴影</div>
+            <div class="d">带来厚度与折射感，消除廉价的「贴纸感」</div></div></li>
+        <li><div class="swatch l5"></div>
+          <div><div class="n">5 · AGSL 折射层</div>
+            <div class="d">基于圆角矩形 SDF 的法线推导：朝光边缘菲涅尔高光 +
+               RGB 三通道偏移产生的色散彩边</div></div></li>
+        <li><div class="swatch l6"></div>
+          <div><div class="n">6 · 边缘亮线</div>
+            <div class="d">1px 描边，左上来光、右下收暗，外加左上角高亮弧，给玻璃「封边」</div></div></li>
+      </ul>
+
+      <div class="note">
+        <b>为什么不做逐帧抓背景？</b><br>
+        真正的折射需要把背后内容抓成位图再送进着色器，开销大且兼容性差。
+        本项目改用「圆角矩形距离场」程序化推导法线与色散，
+        不采样背景即可拿到最具辨识度的光学特征 —— 效果与性能兼得。
+      </div>
+
+      <div class="note" style="margin-top:14px;background:rgba(80,230,190,.08);border-color:rgba(80,230,190,.24);">
+        <b style="color:#7fe8c4">卡面保护是怎么做的？</b><br>
+        <code>CardFaceGuard</code> 会识别 ImageView、Bitmap / 点九图背景、
+        自定义 Drawable，以及资源名带 card / cover / img 等语义的视图，
+        把命中的视图<b style="color:#7fe8c4">连同整个子树一起跳过</b>，
+        再对最外层的卡片框设置一个 overlay 模式的玻璃 Drawable。<br><br>
+        卡片叠层只保留折射高光、色散彩边与流光，
+        铺底染色压到 26%，所以卡面图案依旧清晰 —— 只是像罩了一块玻璃。
+        一键关闭「保留设备卡面」以外的所有开关都不会碰到它。
+      </div>
+
+      <div class="note" style="margin-top:14px;background:rgba(255,190,120,.08);border-color:rgba(255,190,120,.24);">
+        <b style="color:#ffc98a">改完配置怎么立即生效？</b><br>
+        模块设置界面内置 <b style="color:#ffc98a">Root 操作</b> 面板：
+        点「一键重启小米智能卡」，会先 <code>su -c id</code> 校验权限，
+        再 <code>am force-stop com.miui.tsmclient</code>，最后重新拉起目标应用，
+        让 LSPosed 以新配置重新注入，无需手动跑去系统设置里强停。
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    预览为设计示意，实际观感取决于机型、ROM 模糊支持与模块内的强度参数。<br>
+    卡面图案在两种模式下保持一致，代表模块「只改页面、不动卡面」的设计约束。<br>
+    Mi Pay Liquid Glass · LSPosed Module + Magisk Root Module
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var phone = document.getElementById('phone');
+    var btnNative = document.getElementById('btnNative');
+    var btnLiquid = document.getElementById('btnLiquid');
+
+    function setMode(liquid) {
+      phone.classList.toggle('liquid', liquid);
+      phone.classList.toggle('native', !liquid);
+      btnLiquid.classList.toggle('on', liquid);
+      btnNative.classList.toggle('on', !liquid);
+    }
+
+    btnLiquid.addEventListener('click', function () { setMode(true); });
+    btnNative.addEventListener('click', function () { setMode(false); });
+  })();
+</script>
+
+</body>
+</html>

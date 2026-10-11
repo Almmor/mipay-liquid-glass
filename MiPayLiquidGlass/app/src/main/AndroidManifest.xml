@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        包可见性声明：Android 11 (API 30) 起，若不声明 queries，
+        PackageManager#getLaunchIntentForPackage 将无法解析到目标应用，
+        「一键重启小米智能卡」的重新拉起步骤就会失败。
+    -->
+    <queries>
+        <package android:name="com.miui.tsmclient" />
+        <package android:name="com.mipay.wallet" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.LiquidGlass">
+
+        <!-- ============ LSPosed / Xposed 模块声明（传统 API） ============ -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="@string/xposed_description" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="93" />
+        <!-- 推荐作用域：安装后 LSPosed 会自动勾选这些应用 -->
+        <meta-data
+            android:name="xposedscope"
+            android:resource="@array/xposed_scope" />
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

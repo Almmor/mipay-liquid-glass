@@ -1,0 +1,26 @@
+# ============================================================
+#  Mi Pay Liquid Glass · 仓库忽略规则
+# ============================================================
+
+# ---- 构建产物 / IDE ----
+.gradle/
+build/
+.idea/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# ---- 仅入库当前版本的成品，历史版本留在本地 ----
+MiPayLiquidGlass-v*.apk
+MiPayLiquidGlass-Root-v*.zip
+!MiPayLiquidGlass-v1.0.7.apk
+!MiPayLiquidGlass-Root-v1.0.7.zip
+
+# ---- 第三方原始 APK（小米版权，仅本地反编译分析用，不入库）----
+小米智能卡_*.apk
+小米智能卡网页组件_*.apk
+
+# ---- TRAE 工具产物 ----
+.trae-html-share-packages/

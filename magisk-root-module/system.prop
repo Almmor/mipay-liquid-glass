@@ -1,0 +1,8 @@
+# SurfaceFlinger 窗口模糊能力开关（AOSP 官方属性）
+#
+# 参考：https://source.android.google.cn/docs/core/display/window-blurs
+#   PRODUCT_VENDOR_PROPERTIES += ro.surface_flinger.supports_background_blur=1
+#
+# 说明：绝大多数 Android 12+ 的小米 / 红米机型出厂即已开启该属性，
+# 本模块的作用是「补齐 + 校验」。若你的设备确实未开启，需要重启生效。
+ro.surface_flinger.supports_background_blur=1

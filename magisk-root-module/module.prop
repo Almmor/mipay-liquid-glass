@@ -1,0 +1,6 @@
+id=mi_pay_liquid_glass
+name=Mi Pay Liquid Glass (Root)
+version=v1.0.7
+versionCode=10007
+author=LiquidGlass
+description=Root 侧配套模块：为小米智能卡开启系统级窗口模糊能力，并在开机后自动安装随包的 LSPosed 液态玻璃模块。需搭配 LSPosed 使用，安装后请重启。
