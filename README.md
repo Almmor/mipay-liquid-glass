@@ -1,4 +1,4 @@
-# 小米智能卡 · 液态玻璃（Mi Pay Liquid Glass）
+﻿# 小米智能卡 · 液态玻璃（Mi Pay Liquid Glass）
 
 让 **小米智能卡（`com.miui.tsmclient`）** 与 **小米钱包（`com.mipay.wallet`）** 的刷卡 / 支付页面
 支持 iOS 26 风格的 **Liquid Glass（液态玻璃）** 材质，并对刷卡页面做整体美化。
@@ -7,8 +7,8 @@
 
 | 组成 | 形态 | 作用 |
 | --- | --- | --- |
-| **LSPosed 模块** | APK（`MiPayLiquidGlass-v1.6.7.apk`） | 运行时把刷卡页、选卡页、卡详情、支付确认弹窗与浮层改造成液态玻璃材质，**完整保留设备卡面**；内置设置界面与「一键重启小米智能卡 / 重启 SystemUI」（Root） |
-| **Root 模块** | Magisk / KernelSU zip（`MiPayLiquidGlass-Root-v1.6.7.zip`） | 开启系统级窗口模糊能力，并补齐超级岛能力属性、开机自动安装上面的 APK |
+| **LSPosed 模块** | APK（`MiPayLiquidGlass-v2.0.0.apk`） | 运行时把刷卡页、选卡页、卡详情、支付确认弹窗与浮层改造成液态玻璃材质，**完整保留设备卡面**；内置设置界面与「一键重启小米智能卡 / 重启 SystemUI」（Root） |
+| **Root 模块** | Magisk / KernelSU zip（`MiPayLiquidGlass-Root-v2.0.0.zip`） | 开启系统级窗口模糊能力，并补齐超级岛能力属性、开机自动安装上面的 APK |
 
 三条核心行为边界：
 
@@ -181,8 +181,8 @@ iOS 液态玻璃的招牌特征是**折射**：玻璃边缘把背后的内容扭
 
 ```
 mi pay supports liquid glass/
-├── MiPayLiquidGlass-v1.6.7.apk          ← 装好的 LSPosed 模块（可直接安装）
-├── MiPayLiquidGlass-Root-v1.6.7.zip     ← Root 模块（Magisk / KernelSU 直接刷入）
+├── MiPayLiquidGlass-v2.0.0.apk         ← 装好的 LSPosed 模块（可直接安装）
+├── MiPayLiquidGlass-Root-v2.0.0.zip    ← Root 模块（Magisk / KernelSU 直接刷入）
 │
 ├── MiPayLiquidGlass/                    ← LSPosed 模块源码工程
 │   ├── settings.gradle.kts
@@ -203,10 +203,19 @@ mi pay supports liquid glass/
 │       │       ├── CardFaceGuard.java         ★ 卡面 / 图片素材识别与保护
 │       │       ├── GlassTargets.java          （自绘控件类名白名单，1.0.1）
 │       │       ├── GlassChrome.java           （顶部按钮 / 余额区 / 充值按钮 id 通道，1.0.3 拆分）
-│       │       ├── AppleStyle.java            （余额区 Apple Wallet 排版 + 充值按钮淡蓝胶囊，1.0.3）
+│       │       ├── AppleStyle.java            （余额区 Apple Wallet 排版 + 天蓝纯色磨砂玻璃充值按钮，1.7.1）
 │       │       ├── RadiusProbe.java           （卡面圆角自动探测，1.0.3）
 │       │       ├── GlassWindowStyler.java     （窗口模糊 + 沉浸模式）
-│       │       └── GlassViewStyler.java       （视图树玻璃化 + 卡面剪枝）
+│       │       ├── GlassViewStyler.java       （视图树玻璃化 + 卡面剪枝 + 交易条目接管）
+│       │       ├── CardFaceGrabber.java       （卡面截获 Hook：ImageView / CardInfo / View#setBackground）
+│       │       ├── IslandFaceCache.java       ★ 卡面缓存、按卡名配对、高清匹配、落盘
+│       │       ├── IslandOverlay.java         ★ 超级岛动画自绘视图（进出 / 翻转 / 对勾）
+│       │       ├── IslandOverlayController.java（岛窗口管理 + 帧探测 + 广播入口）
+│       │       ├── IslandBridge.java          （卡面跨进程投递：显式广播，最长边 ≤384px）
+│       │       ├── IslandStyler.java          （焦点通知通道：a1 摘除系统岛参数）
+│       │       ├── TradeDetailSheet.java      ★ iOS 风格「交易详情」弹层（站点 / 时间 / 金额）
+│       │       ├── TradeMapRenderer.java      ★ 交易地图：高德栅格瓦片拼图 + 站点经纬度解析
+│       │       └── FaceExportDiagnostic.java  （adb 触发导出卡面候选，诊断用）
 │       └── res/                          （设置界面布局、图标、主题）
 │
 ├── magisk-root-module/                  ← Root 模块源码
@@ -231,7 +240,7 @@ mi pay supports liquid glass/
 
 ### 方式一：一体化安装（推荐）
 
-1. 用 Magisk / KernelSU 刷入 `MiPayLiquidGlass-Root-v1.6.7.zip`；
+1. 用 Magisk / KernelSU 刷入 `MiPayLiquidGlass-Root-v2.0.0.zip`；
 2. 重启设备 —— 开机后 Root 模块会自动安装 `MiPayLiquidGlass.apk`；
 3. 打开 **LSPosed 管理器 → 模块 → 小米智能卡 · 液态玻璃**，启用并确认作用域勾选了
    `com.miui.tsmclient`（以及可选的 `com.mipay.wallet`），
@@ -242,7 +251,7 @@ mi pay supports liquid glass/
 
 ### 方式二：手动安装
 
-1. 直接安装 `MiPayLiquidGlass-v1.6.7.apk`；
+1. 直接安装 `MiPayLiquidGlass-v2.0.0.apk`；
 2. 在 LSPosed 中启用模块并勾选作用域；
 3. 重启目标应用（建议重启设备以确保模糊属性生效）。
 
@@ -409,7 +418,143 @@ LSPosed 侧日志在 LSPosed 管理器的日志页，过滤 tag `MiPayLiquidGlas
 
 ## 更新日志
 
-### v1.6.7
+### v2.0.0
+
+**本版改动**
+
+- **正式发布 2.0.0**。经过 1.x 系列对页面材质、卡面保护、超级岛动画与交易详情的持续打磨，
+  页面、弹窗、浮层与卡面叠加的液态玻璃材质已趋于稳定，本次作为 **2.0.0 正式版**发布。
+- **交易详情页顶栏对齐 Miuix 原生 `TopAppBar`**（[Miuix](https://github.com/compose-miuix-ui/miuix)）：
+  顶栏背景为不透明 `surface`（`color` 默认值），**不做毛玻璃**；返回键为扁平返回箭头
+  （起始边距 16dp）；折叠高度 `TopAppBarDefaults.CollapsedHeight` 为 **52dp**；无 elevation。
+  地图页顶栏同步为同一扁平样式。
+- 详细的历史改动见下方 v1.7.x 各条。
+
+### v1.7.11
+
+**本版改动**
+
+- **顶栏改回 Miuix 原生 TopAppBar 样式（不做毛玻璃）**。v1.7.10 给顶栏铺了半透明玻璃底，
+  这一版按需求撤掉：顶栏背景恢复为不透明 `surface`（与页面同色），与官方
+  [Miuix](https://github.com/compose-miuix-ui/miuix) 的 `TopAppBar`（`color` 默认 `surface`）一致。
+- **顶栏返回键恢复为扁平返回箭头**。撤掉圆形玻璃底，回到 Miuix 的纯箭头导航图标
+  （`plainBackButton`），起始边距 16dp；同时去掉顶栏投影 —— Miuix 顶栏是扁平 `surface`，无 elevation。
+- **折叠高度对齐 Miuix**：`TopAppBarDefaults.CollapsedHeight` 由 56dp 改为 **52dp**。
+- 地图页顶栏返回键同步改为同一扁平样式，两处顶栏观感统一。
+
+### v1.7.10
+
+**本版改动**
+
+- **交易详情页顶栏改回液态玻璃**。上一版为了「严格对齐 Miuix TopAppBar 规范」，
+  把顶栏背景写成了不透明 `surface`（`setBackgroundColor`），所以折叠后永远不可能半透明。
+  本版把顶栏背景换成 `LiquidGlassDrawable` 的半透明磨砂底，内容上滑到顶栏下方时会透出来。
+- **顶栏返回键改回玻璃圆底**。上一版用的是 Miuix 的扁平纯箭头（`plainBackButton`，无 background），
+  本版换回「圆形液态玻璃底 + 箭头」（`navBackButton`）。
+
+### v1.7.9
+
+**本版改动**
+
+- **交易通道改为真正的 TU / CU**。「交易通道」在交通卡领域指**卡上的应用通道**，
+  不是交易记录里的字段 —— 之前我拿卡内 `ordinalTrafficType`（本机地铁是 `01`）当通道，
+  方向就错了。按公开交通卡协议资料与开源项目
+  [TU-Reader（行旅录，Apache-2.0）](https://github.com/HaoTian22/TU-Reader)：
+  交通联合应用 AID `A000000632010105` → `TU`；住建部城市一卡通 AID `...86980701` → `CU`。
+  现在从 `CardInfo#getCardAid()` 取 AID 判定，实机日志：
+  `AID=A00000063201010511215449414E4A49 → TU`、`AID=A0000000032660869807010000000000 → CU`。
+  界面显示形如 `TU · 地铁`。
+- **顶栏按 Miuix TopAppBar 重做**：折叠高度 56dp、标题水平内边距 26dp、
+  导航图标距左边 16dp、背景恒为 `surface`；折叠后的小标题从「居中」改成 Miuix 的
+  「左对齐、跟在返回箭头之后」（17sp）。
+- **修导航栏层级**：顶栏原先在 `ScrollView` 之前加入根布局，后加入的内容会盖住它。
+  现在 `bringToFront()` + `elevation` 双保险，内容从顶栏下方穿过并被完全遮住。
+- **修顶栏背景不透明**：去掉了早期那层 `alpha` 从 0 渐显的假底 —— 那会让折叠瞬间
+  顶栏是半透明的。现在顶栏底色是恒定的不透明 `surface`，滚动时只切换标题。
+
+
+- **所有 UI 统一到 Miuix 设计语言**（`compose-miuix-ui/miuix`）。色板逐项对齐官方令牌：
+  浅色 `surface #F7F7F7` / `surfaceContainer #FFFFFF` / `onSurfaceContainer #000000` /
+  `onSurfaceContainerVariant #959595` / `primary #3482FF` / `dividerLine #E0E0E0`，
+  深色对应 `#000000` / `#242424` / `#E6FFFFFF` / `#737373` / `#277AF7` / `#393939`。
+  实机逐像素核验（深色模式）：页面底色 `#000000`、卡片 `#242424`、药丸 `#2B3B54`
+  （`tertiaryContainer`）、强调色 `#277AF7`、分隔线 `#393939` —— 全部命中官方值。
+- **设置页整体重做**：页面底色换成 `surface`，分组面板换成 `surfaceContainer` + 20dp 圆角的
+  Miuix Card，分隔线换成 `dividerLine` 并按 Miuix 惯例左缩进对齐文字；
+  主按钮 `primary`、次按钮 `secondaryContainer`（都为 12dp 圆角并带按下态）、
+  徽标改成 `tertiaryContainer` 全圆角药丸；开关与滑块的强调色统一到 `primary`。
+- **排版遵循 Miuix Text Styles**：分组小标题 `subtitle 14sp Bold`、行标题 `main 17sp`、
+  行摘要 `footnote1 13sp`、页面大标题 `title2 24sp`；层级只用字号与颜色区分，
+  去掉了旧版靠字重和宽字距堆出来的「科技感」。
+- **深色模式由资源自动切换**：新增 `values-night/`，同一套布局在两个模式下各自命中官方令牌，
+  不再有硬编码的 `#1FFFFFFF`、`#08122B` 这类颜色。
+- 说明：灵动岛（液态玻璃动画）与宿主页面上叠加的玻璃材质**保持原样**——
+  那是本模块的核心效果，不属于「页面 UI 样式」；如果你希望岛本身也改成 Miuix 扁平卡片，
+  告诉我，我单独改一版。
+
+- **交易详情与地图都改成整屏页面**，并按 **Miuix**（`compose-miuix-ui/miuix`）官方色板重做：
+  页面底色 `surface #F7F7F7 / #000000`、卡片 `surfaceContainer #FFFFFF / #242424`、
+  强调色 `primary #3482FF / #277AF7`、分隔线 `dividerLine #E0E0E0 / #393939`，
+  文案层级用 `onSurfaceContainer` 与 `onSurfaceContainerVariant`。
+- **适配状态栏与导航栏**：窗口 edge-to-edge、两条系统栏全透明，底色由页面自己铺，
+  再按 `systemBars` 的 insets 给根布局补上下留白，并按页面明暗切换系统栏图标明暗。
+  状态栏与手势条叠在页面底色上不再出现割裂色块。
+- **地图跟随页面滚动**，并支持**放大缩小**：地图位图按容器 1.4 倍渲染，
+  右下角两枚液态玻璃圆底 `+` / `−` 按钮；地图上可直接**双指捏合**缩放、
+  **双击**放大/复位、放大后**拖动**平移。未缩放时单指竖向滑动会把触摸交还给外层
+  `ScrollView`，所以拖地图也能滚页面。
+- **返回键改为液态玻璃**：导航栏箭头坐在一枚圆形 `LiquidGlassDrawable` 上。
+- **交易通道显示真实字段**。反编译确认交易数据对象是
+  `com.tsmclient.smartcard.model.TradeLog`，其中 `mTrafficType`（地铁/公交）、
+  `mOrdinalTrafficType`（通道码，本机地铁记录为 `01`，北京一卡通公交记录为 `TU`/`CU` 一类）、
+  `mConsumptionType`、`mTradeType`、`mTerminalNo`、`mTradeID` 这些字段**应用界面全都不显示**。
+  现在「交易通道」一栏显示「通道码 · 交通类型」（实机为 `01 · 地铁`），
+  并新增一整组**「凭证信息」**：交通类型 / 通道码 / 消费类型 / 交易类型码 / 终端编号 / 交易凭证号。
+- **「更多交易信息」补全**：新增「站点官方名」（高德 POI 标题，如「草桥(地铁站)」）、
+  「所属区域」（如「北京市丰台区」）、「途经线路」（如「10号线／19号线／大兴机场线／房山线」），
+  以及「状态」（由金额正负推导：扣费成功 / 入账成功 / 待扣费）。
+  页面按「行程 / 交易信息 / 凭证信息 / 站点信息」分组，并标注「地图数据 © 高德软件」。
+- 顺带修掉一个隐患：交易行的点击监听原先会挂到**上层大容器**上
+  （因为 `item_container` 是递归查找的），导致点列表任何位置都弹第一条记录。
+  现在改成只认浅层（≤4 层）真正的行容器。
+
+**为什么「交易通道」要这么绕才能拿到**
+
+| 尝试 | 结果 |
+| --- | --- |
+| `XposedHelpers.findClass("androidx.recyclerview.widget.RecyclerView$Adapter")` | LSPosed 会把类名里的点改写成 `$`（`androidx$recyclerview$...`）后找不到类 |
+| `Class.forName(同类名, appClassLoader)` | 同样 `ClassNotFoundException` —— 宿主这个类不在模块可见的 classloader 里 |
+| 从视图树按类名后缀找 `RecyclerView`，再反射 `getAdapter()` | 走通；再用 `getChildViewHolder` 拿真实位置，按时间数字匹配兜底 |
+| 最终定位到 `TradeLog` 的 `mOrdinalTrafficType` | 即「通道码」，实机地铁为 `01` |
+
+- **交易详情新增「站点 + 时间 + 交易地图」**（iOS 样式）。交易记录里每一行本来就有
+  站点 / 时间 / 金额（`tv_first_sub_key` / `tv_sub_value` / `tv_value`），
+  但这些行 `clickable=false`，点上去没有任何反馈。现在接管点击，弹出 iOS 风格卡片：
+  顶部一张真实地图、下面是金额与状态、再下面是「站点 / 时间 / 类型 / 金额」四行
+  （左灰标签、右黑值），底部一枚天蓝「完成」按钮。
+- **交易地图**：用高德栅格瓦片（`webrd0x.is.autonavi.com`，中文标注、无需 key）
+  按站点经纬度拼图，双站点时自动连线 + 两端图钉，单点居中打钉。
+  坐标来自系统 `Geocoder`（MIUI 上由高德提供），站点名形如「草桥-首经贸」会拆成两段分别解析。
+- **卡面清晰度**：重新启用「磁盘高清匹配」，并给落盘加了 96px 短边门槛。
+  之前岛上卡面只有 `96x60`（那是设置页「选择卡面」的列表缩略图被一起落盘了），
+  放大到约 324x192 的卡片上要放 5 倍，必然糊。现在会拿磁盘里同一张卡的高清图替换，
+  实机日志印证：`高清匹配「京津冀互联互通卡」最佳距离=257140 次佳=888564`（最佳比次佳好 3.4 倍）。
+
+**踩掉的坑（都写在这里，省得后续再踩）**
+
+| 现象 | 根因 | 处理 |
+| --- | --- | --- |
+| 「改了没生效」 | 动画跑在 SystemUI 进程，而它常年不重启；`am force-stop com.android.systemui` 会被系统忽略 | 装完 APK 必须重启 SystemUI（用 `am crash`）；日志里 `SystemUI 侧加载的模块版本 = x.y.z` 一眼可辨 |
+| 误判「充值按钮分支从未触发」 | 只看日志时那段窗口里用户根本没打开卡详情页 | 用 `adb logcat` 实时复现：`充值按钮 → 天蓝纯色磨砂玻璃 id=tv_top_up` 确实在跑 |
+| 交易条目拿不到 | 交易记录是异步拉取的，onResume 后 420ms 那次遍历跑的时候列表项还没创建 | 改挂 `RecyclerView.Adapter#bindViewHolder`，每行绑定时接管点击 |
+| 地图取不到瓦片 | `tile.openstreetmap.org` / `nominatim.openstreetmap.org` 在国内容器内不可达（连接超时） | 改用高德栅格瓦片（实测 HTTP 200），解析/下载失败时降级为风格化地图卡 |
+
+**iOS 风格与配色**
+
+- 卡片：浅色 `#FFFFFF` / 深色 `#1C1C1E`，20pt 圆角；标题 17pt Semibold 居中；
+- 明细行：左 15pt 灰标签 `#8E8E93`、右 15pt 中黑值，行间 1px 分隔线；
+- 金额：32pt Heavy，单位小一号灰色，右侧绿色「交易成功」；
+- 完成按钮：天蓝 `#34A0FF` 纯色，14pt 圆角。
 
 **刷卡动画（SystemUI 自绘，锁屏可见）**
 
@@ -434,16 +579,6 @@ LSPosed 侧日志在 LSPosed 管理器的日志页，过滤 tag `MiPayLiquidGlas
 - **删掉「盲扫磁盘缓存」兜底**：那条路只看宽高比，分不清是哪张卡，
   会把银行卡 / 门卡之类比例相近的图当成本卡画出来。现在拿不到就显示中性默认卡面，
   **绝不再画错卡**。
-
-**踩掉的坑（都写在这里，省得后续再踩）**
-
-| 现象 | 根因 | 处理 |
-| --- | --- | --- |
-| 改动「改了没生效」 | 动画跑在 SystemUI 进程，而它常年不重启 | 装完 APK 必须重启 SystemUI；新增日志 `SystemUI 侧加载的模块版本 = x.y.z` 一眼可辨 |
-| 卡背资源读不到 | 模块资源 id 在 SystemUI 进程里解析不了 | 用 `createPackageContext` 借模块自己的资源表 |
-| 卡名列表 / 落盘数据被清空 | 主进程与 `:daemon` 都注册了接收器 / 都来落盘 | 空集合一律不回应、不落盘 |
-| 岛无法截屏验证 | 岛是 `TYPE_SECURE_SYSTEM_OVERLAY` 安全层，系统禁止截屏录屏 | 改为让动画自报 `动画内容 卡背=… 卡正面=…` |
-| 磁盘里盲选卡面会选错 | 只看宽高比无法区分是哪张卡 | 删除该兜底，宁可显示默认卡面 |
 
 
 ## 卸载

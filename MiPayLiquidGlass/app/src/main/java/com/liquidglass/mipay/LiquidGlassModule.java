@@ -19,6 +19,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import com.liquidglass.mipay.glass.CardFaceGrabber;
 import com.liquidglass.mipay.glass.FaceExportDiagnostic;
 import com.liquidglass.mipay.glass.GlassViewStyler;
+import com.liquidglass.mipay.glass.TradeDetailSheet;
 import com.liquidglass.mipay.glass.GlassWindowStyler;
 import com.liquidglass.mipay.glass.IslandOverlayController;
 import com.liquidglass.mipay.glass.IslandStyler;
@@ -111,6 +112,8 @@ public class LiquidGlassModule implements IXposedHookLoadPackage {
             CardFaceGrabber.install(lpparam.classLoader);
             // 诊断入口：可被 adb 触发，把缓存里的卡面候选导出到外部私有目录核对。
             FaceExportDiagnostic.install(lpparam.classLoader);
+            // 交易记录条目：接管点击 → 弹出 iOS 风格的「交易详情」（站点 / 时间 / 金额 + 交易地图）。
+            TradeDetailSheet.install(lpparam.classLoader, config);
             log("hook 安装完成");
         } catch (Throwable throwable) {
             log("hook 安装失败: " + throwable);

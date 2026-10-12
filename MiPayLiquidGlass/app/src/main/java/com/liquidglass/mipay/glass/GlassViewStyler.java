@@ -166,7 +166,12 @@ public final class GlassViewStyler {
         boolean consumed = overlayConsumed;
 
         if (depth > 0) {
-            // ---- 优先级 -1：需要移除的页面提示 ----
+            // ---- 优先级 -1：交易记录条目 ----
+            // 记录行本身 clickable=false，点上去没有任何反馈。这里接管点击，
+            // 弹出 iOS 风格的「交易详情」（站点 / 时间 / 金额 + 交易地图）。
+            TradeDetailSheet.attachIfRecordItem(view, cfg);
+
+            // ---- 优先级 0：需要移除的页面提示 ----
             // 直接 GONE 并剪枝，避免再给这些提示做玻璃化。
             if (PageTweaks.shouldHide(view)) {
                 PageTweaks.hide(view);
@@ -249,9 +254,13 @@ public final class GlassViewStyler {
                 float radius = Math.min(view.getWidth(), view.getHeight()) * 0.5f;
                 view.setBackground(new LiquidGlassDrawable(cfg, radius, density, false, dark));
                 clipToOutline(view);
-            } else if (GlassChrome.isRechargeButton(view)) {
-                // 充值按钮：Apple 蓝胶囊 + 液态玻璃高光，圆角依赖实测高度，未测量时等延迟遍历
-                AppleStyle.applyRechargeButton(view, cfg, density, dark);
+            } else if (GlassChrome.isSwipeRechargeButton(view)) {
+                // 刷卡页（双击电源键）充值按钮：天蓝纯色磨砂玻璃 + 胶囊圆角
+                AppleStyle.applyRechargeGlassCapsule(view, cfg, density, dark);
+            } else if (GlassChrome.isDetailRechargeButton(view)
+                    || GlassChrome.looksLikeRechargeButton(view)) {
+                // 卡详情页等页面的充值按钮：天蓝纯色磨砂玻璃，圆角与余额卡片一致（14pt）
+                AppleStyle.applyRechargeGlass(view, cfg, density, dark);
             } else if (GlassChrome.isBalancePanel(view)) {
                 // 余额区：透明液态玻璃底 + Apple Pay 排版（幂等，重复遍历无副作用）
                 AppleStyle.applyBalancePanel(view, cfg, density, dark);
@@ -326,7 +335,8 @@ public final class GlassViewStyler {
             return true;
         }
         try {
-            float radius = cardFace ? cardOverlayRadius(view, cfg) : resolveRadius(view, density, cfg);
+            float radius = cardFace ? cardOverlayRadius(view, cfg)
+                    : resolveOverlayRadius(view, density, cfg);
             view.setForeground(new LiquidGlassDrawable(cfg, radius, density, true, dark));
             if (cardFace) {
                 // 卡面按 iOS 规格加一层底部阴影（alpha 8%、Y 2pt、blur 8pt），
@@ -491,6 +501,30 @@ public final class GlassViewStyler {
         float probed = RadiusProbe.resolve(view);
         if (probed > 0f) {
             return probed;
+        }
+        if (isCardView(view)) {
+            return readCardRadius(view, density, cfg);
+        }
+        return cfg.cornerRadiusDp * density;
+    }
+
+    /**
+     * 玻璃高光（非卡面）用的圆角：<b>只认本视图自身的圆角</b>。
+     *
+     * <p>为什么不能沿用 {@link #resolveRadius}：那个会回溯父容器，元素自己没圆角时
+     * 会套上父级的大圆角，于是高光圆角与元素背景圆角对不齐 ——
+     * 用户反馈的「余额显示框高光圆角和背景圆角大小不一致」就是这个。
+     * 这里取不到自身圆角时，退到卡片默认圆角，宁可比背景略方，也不要更圆。</p>
+     */
+    private static float resolveOverlayRadius(View view, float density, Config cfg) {
+        // 余额区是特例：它的背景由 applyBalancePanel 固定成 14pt 圆角，
+        // 高光必须取同一个常量，否则「高光圆角 ≠ 背景圆角」会一直存在。
+        if (GlassChrome.isBalancePanel(view)) {
+            return AppleStyle.BALANCE_CARD_RADIUS_DP * density;
+        }
+        float own = RadiusProbe.resolveOwn(view);
+        if (own > 0f) {
+            return own;
         }
         if (isCardView(view)) {
             return readCardRadius(view, density, cfg);

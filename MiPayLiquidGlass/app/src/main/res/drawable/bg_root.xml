@@ -1,22 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape android:shape="rectangle">
-            <gradient
-                android:angle="270"
-                android:startColor="@color/glass_bg_top"
-                android:endColor="@color/glass_bg_bottom"
-                android:type="linear" />
-        </shape>
-    </item>
-    <item>
-        <shape android:shape="oval">
-            <size android:width="520dp" android:height="520dp" />
-            <gradient
-                android:type="radial"
-                android:gradientRadius="260dp"
-                android:startColor="#3D4C7DFF"
-                android:endColor="#00000000" />
-        </shape>
-    </item>
-</layer-list>
+<!-- Miuix surface：页面底色（浅色 #F7F7F7 / 深色 #000000） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/miuix_surface" />
+</shape>

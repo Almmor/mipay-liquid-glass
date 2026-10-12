@@ -24,8 +24,8 @@ import android.view.View;
  * <p>整段动画由 Canvas 自绘，不依赖布局或图片资源。完整时序：</p>
  *
  * <ol>
- *     <li><b>进入</b>：胶囊从屏幕顶部「探出」—— 整块岛从窗口上边界外滑入，
- *     带轻微回弹（1.5.6 起取代缩放弹跳）；</li>
+ *     <li><b>进入</b>：绕「岛顶边中点」缩放 —— 岛从顶部一个点逐渐放大成完整的岛
+ *     （1.6.8 起取代 1.5.6 的「整块岛从窗口上边界外滑入」）；</li>
  *     <li><b>卡片入场</b>：卡片淡入并轻微放大，与探出同时开始；</li>
  *     <li><b>翻转</b>：卡片沿 Y 轴翻转 180°（{@link Camera#rotateY}，真正的 3D 变换）。
  *     1.5.7 起<b>岛一开始出现就翻</b>；1.6.3 起<b>翻转前是卡背（默认卡面）、
@@ -33,7 +33,7 @@ import android.view.View;
  *     <li><b>状态</b>：卡片下方画入白色线条打勾 / 打叉，笔画用 {@link PathMeasure} 逐段描出；</li>
  *     <li><b>文案</b>：交易金额与余额从下方滑入；</li>
  *     <li><b>停留</b>；</li>
- *     <li><b>消失</b>：加速缩回屏幕顶部并淡出，然后回调移除窗口。</li>
+ *     <li><b>消失</b>：加速缩回顶部那个点并淡出，然后回调移除窗口。</li>
  * </ol>
  *
  * <h3>1.6.3 的关键改动</h3>
@@ -95,14 +95,14 @@ public final class IslandOverlay extends View {
     private static final long CARD_IN_START = 0L;
     private static final long CARD_IN_END = 180L;
     /**
-     * 卡片翻转：1.5.7 起「岛一开始出现就翻」。
+     * 卡片翻转：1.6.8 起<b>与出现同时开始</b>且整体加快（560ms 内翻完）。
      *
-     * <p>旧时序要等探出（460ms）与卡片入场（660ms）都结束才开始翻，
-     * 观感是「岛长好了、停一下、才翻」。现在翻转在 140ms 就起步，
-     * 与探出动作用同一段时间，岛探出来的过程中卡片已经在转。</p>
+     * <p>演进过程：最初要等探出（460ms）与卡片入场（660ms）都结束才开始翻；
+     * 1.5.7 提到 140ms 起步；现在直接归零 —— 岛刚一出现卡片就在转，
+     * 落定得更早，观感更「干脆」。</p>
      */
-    private static final long FLIP_START = 140L;
-    private static final long FLIP_END = 900L;
+    private static final long FLIP_START = 0L;
+    private static final long FLIP_END = 560L;
     /** 白色线条打勾 / 打叉描边。 */
     private static final long STATUS_START = 940L;
     private static final long STATUS_END = 1380L;
@@ -122,6 +122,13 @@ public final class IslandOverlay extends View {
     /** 胶囊在视图内的上边距：探出动画的位移行程 = PILL_TOP + PILL_HEIGHT。 */
     private static final float PILL_TOP_DP = 14f;
     private static final float BOTTOM_PADDING_DP = 14f;
+    /**
+     * 进入 / 退出的起始缩放（1.6.8）。
+     *
+     * <p>取 0.04 而不是 0：真正缩到 0 时圆角矩形会退化成亚像素点，
+     * 抗锯齿抖动明显；留 4% 既看着像「从一个点长出来」，又不会闪。</p>
+     */
+    private static final float POINT_SCALE = 0.04f;
 
     private static final float CARD_WIDTH_DP = 108f;
     private static final float CARD_HEIGHT_DP = 64f;
@@ -293,17 +300,19 @@ public final class IslandOverlay extends View {
         float exit = fraction(t, HOLD_END, EXIT_END);
 
         float alpha = Math.min(fraction(t, 0L, 200L), 1f) * (1f - exit);
-        // 顶部探出：隐藏态位移 = -(PILL_TOP + PILL_HEIGHT)，展开态位移 = 0。
-        // enter 用小幅度回弹（探出末端略过冲再收回）；exit 用 easeIn 加速缩回。
-        float dyHidden = -(PILL_TOP_DP + PILL_HEIGHT_DP) * density;
-        float dy = dyHidden * (1f - easeOutPeek(enter)) + dyHidden * easeIn(exit);
+        // 1.6.8：进入 / 退出改为「从顶部一个点逐渐放大成一个岛」。
+        // 绕「岛顶边中点」缩放：该点固定不动，岛自顶部向下长出来（消失时缩回该点）。
+        // 相比此前「整块岛从窗口上边界外滑入」，这个效果更像灵动岛从顶部「挤」出来。
+        float scaleIn = POINT_SCALE + (1f - POINT_SCALE) * easeOutPeek(enter);
+        float scaleOut = 1f - (1f - POINT_SCALE) * easeIn(exit);
+        float scale = scaleIn * scaleOut;
 
-        if (alpha <= 0f) {
+        if (alpha <= 0f || scale <= 0.01f) {
             return;
         }
 
         int save = canvas.save();
-        canvas.translate(0f, dy);
+        canvas.scale(scale, scale, getWidth() * 0.5f, PILL_TOP_DP * density);
 
         drawPill(canvas, alpha);
         drawCard(canvas, alpha, t);

@@ -103,6 +103,7 @@ public final class IslandBridge {
                     if (IslandFaceCache.hasUnsavedCaptures()) {
                         IslandFaceCache.persist(appContext);
                     }
+                    IslandFaceCache.persistUrls(appContext);
                 } catch (Throwable ignored) {
                     // 落盘失败不影响动画
                 }

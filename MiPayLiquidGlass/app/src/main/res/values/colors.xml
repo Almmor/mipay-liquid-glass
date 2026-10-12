@@ -1,20 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  配色全部取自 Miuix 官方色板（compose-miuix-ui/miuix）浅色值。
+  来源：https://compose-miuix-ui.github.io/miuix/guide/colors
+  深色值见 values-night/colors.xml。
+-->
 <resources>
+
+    <!-- ===== 语义色（Miuix 令牌） ===== -->
+    <color name="miuix_primary">#FF3482FF</color>
+    <color name="miuix_on_primary">#FFFFFFFF</color>
+    <color name="miuix_primary_variant">#FF3482FF</color>
+    <color name="miuix_primary_container">#FF5D9BFF</color>
+    <color name="miuix_tertiary_container">#FFEAF2FF</color>
+    <color name="miuix_on_tertiary_container">#FF3482FF</color>
+    <color name="miuix_secondary">#FFE6E6E6</color>
+    <color name="miuix_secondary_container">#FFF0F0F0</color>
+    <color name="miuix_secondary_variant">#FFF0F0F0</color>
+    <color name="miuix_on_secondary_variant">#FF303030</color>
+    <color name="miuix_background">#FFFFFFFF</color>
+    <color name="miuix_on_background">#FF000000</color>
+    <color name="miuix_on_background_variant">#FF8C93B0</color>
+    <color name="miuix_surface">#FFF7F7F7</color>
+    <color name="miuix_on_surface">#FF000000</color>
+    <color name="miuix_surface_container">#FFFFFFFF</color>
+    <color name="miuix_on_surface_container">#FF000000</color>
+    <color name="miuix_on_surface_container_variant">#FF959595</color>
+    <color name="miuix_on_surface_variant_summary">#99000000</color>
+    <color name="miuix_on_surface_variant_actions">#66000000</color>
+    <color name="miuix_error">#FFE94634</color>
+    <color name="miuix_outline">#FFD9D9D9</color>
+    <color name="miuix_divider_line">#FFE0E0E0</color>
+    <color name="miuix_window_dimming">#4D000000</color>
+    <color name="miuix_control_highlight">#1F3482FF</color>
+
+    <!-- ===== 旧名兼容：全部指向 Miuix 语义色，避免历史引用失效 ===== -->
+    <color name="text_primary">@color/miuix_on_surface_container</color>
+    <color name="text_secondary">@color/miuix_on_surface_container_variant</color>
+    <color name="text_tertiary">@color/miuix_on_surface_variant_actions</color>
+    <color name="accent">@color/miuix_primary</color>
+    <color name="accent_soft">@color/miuix_tertiary_container</color>
+    <color name="panel_fill">@color/miuix_surface_container</color>
+    <color name="panel_stroke">@color/miuix_divider_line</color>
+    <color name="glass_bg_top">@color/miuix_surface</color>
+    <color name="glass_bg_bottom">@color/miuix_surface</color>
+    <color name="card_sheen_top">@color/miuix_surface_container</color>
+    <color name="card_sheen_bottom">@color/miuix_surface_container</color>
+
     <color name="ic_launcher_background">#0B1020</color>
-
-    <color name="glass_bg_top">#FF101935</color>
-    <color name="glass_bg_bottom">#FF060A16</color>
-
-    <color name="panel_fill">#1FFFFFFF</color>
-    <color name="panel_stroke">#38FFFFFF</color>
-
-    <color name="text_primary">#F2FFFFFF</color>
-    <color name="text_secondary">#A6FFFFFF</color>
-    <color name="text_tertiary">#66FFFFFF</color>
-
-    <color name="accent">#FF7FB2FF</color>
-    <color name="accent_soft">#337FB2FF</color>
-
-    <color name="card_sheen_top">#59FFFFFF</color>
-    <color name="card_sheen_bottom">#12FFFFFF</color>
 </resources>

@@ -93,7 +93,17 @@ final class IslandFaceCache {
      * 会把卡面匹配错（详见 {@link #upgradeFromDisk} 里的记录）。
      * 宁可要正确但略糊的卡面，也不要清晰但错卡的卡面。</p>
      */
-    private static final boolean ENABLE_DISK_MATCH = false;
+    private static final boolean ENABLE_DISK_MATCH = true;
+
+    /**
+     * 落盘 / 恢复时的最小可用短边（px）。
+     *
+     * <p>为什么要设这道门槛：设置页「选择卡面」的列表缩略图是 96px 宽的
+     * （96x60），它本来是给选择列表用的 UI 小图，却被一起落盘了。实机日志里
+     * 岛上的卡面因此变成了 {@code 真实卡面(96x60)} —— 画到约 324x192 的卡片上
+     * 要放大 5 倍，糊得厉害。比 96 还小的图一律不落盘、也不从落盘数据恢复。</p>
+     */
+    private static final int MIN_STORE_EDGE_PX = 96;
     /** 视图树兜底路径的节流间隔。 */
     private static final long VIEW_CAPTURE_INTERVAL_MS = 600L;
     /** 单次磁盘扫描最多检查多少个文件（按修改时间从新到旧），兜住极端大的缓存目录。 */
@@ -204,6 +214,25 @@ final class IslandFaceCache {
     static Bitmap resolve(Context context, String preferredName) {
         // 进程刚起来时，把上次落盘的识别结果读回来（否则要等用户再开一次卡片列表）
         loadIfNeeded(context);
+        loadUrlsIfNeeded(context);
+
+        // 0) 最强路径：已知这张卡的「卡面原始 URL」，直接下高清原图。
+        //    列表小图只有 157x98，画到岛上有 320x192 左右，必然发糊；
+        //    原始 URL 给的是全尺寸素材，清晰度一次性到位。
+        String wanted = preferredName == null || preferredName.isEmpty()
+                ? autoFaceName : preferredName;
+        if (wanted != null && !wanted.isEmpty()) {
+            Bitmap hd = cachedHighRes(wanted);
+            if (hd == null) {
+                hd = fetchFromUrl(wanted);
+            }
+            if (hd != null) {
+                storeIfLarger(wanted, hd);
+                storeDirty = true;
+                persist(context);
+                return hd;
+            }
+        }
         // 1) 用户明确指定了卡名
         if (preferredName != null && !preferredName.isEmpty()) {
             Bitmap picked = faceOf(preferredName);
@@ -285,6 +314,11 @@ final class IslandFaceCache {
             for (java.util.Map.Entry<String, Bitmap> entry : snapshot.entrySet()) {
                 // 落盘按原图尺寸（列表图标本身就是 157x98 左右），
                 // 别用界面缩略图那档 96px，否则恢复后更糊
+                if (entry.getValue() == null
+                        || Math.min(entry.getValue().getWidth(), entry.getValue().getHeight())
+                        < MIN_STORE_EDGE_PX) {
+                    continue; // 96x60 这类 UI 缩略图不落盘，避免把好数据挤掉
+                }
                 byte[] jpeg = encodeJpeg(entry.getValue(), 240);
                 if (jpeg.length == 0) {
                     continue;
@@ -335,8 +369,15 @@ final class IslandFaceCache {
                 if (bitmap == null) {
                     continue;
                 }
+                // 早期落盘里混进了 96x60 的 UI 缩略图。这类图仍留在内存里 ——
+                // 它正好可以当「高清匹配」的参照图（匹配需要一张低清原图），
+                // 但不会再被写回磁盘（persist 有尺寸门槛），于是旧数据自然愈合。
                 synchronized (FACE_LOCK) {
-                    facesByName.put(parts[1], bitmap);
+                    Bitmap old = facesByName.get(parts[1]);
+                    if (old == null || Math.min(bitmap.getWidth(), bitmap.getHeight())
+                            > Math.min(old.getWidth(), old.getHeight())) {
+                        facesByName.put(parts[1], bitmap);
+                    }
                     if (parts.length >= 3 && "1".equals(parts[2]) && autoFaceName == null) {
                         autoFaceName = parts[1];
                     }
@@ -349,6 +390,188 @@ final class IslandFaceCache {
             }
         } catch (Throwable throwable) {
             XposedBridge.log(TAG + ": 读取落盘卡面失败 " + throwable);
+        }
+    }
+
+    // ======================================================================
+    // 卡面原始 URL：CardInfo#getCardArt() → 自己下高清原图
+    // ======================================================================
+
+    /** 卡名 → 卡面原始 URL。 */
+    private static final java.util.Map<String, String> urlByName = new java.util.HashMap<>();
+    private static volatile boolean urlsDirty;
+    private static boolean urlsLoaded;
+
+    /**
+     * 由 {@link CardFaceGrabber} 在 {@code CardInfo#getCardArt()} 之后调用。
+     *
+     * <p>拿到 URL 是解决「卡面模糊」的关键：App 交给界面的永远只有列表小图
+     * （157x98），而原始 URL 指向的是全尺寸素材。</p>
+     */
+    static void offerCardArt(Object cardInfo, String url) {
+        if (url == null || url.trim().isEmpty()) {
+            return;
+        }
+        String name = readCardName(cardInfo);
+        if (name == null || name.trim().isEmpty()) {
+            return;
+        }
+        synchronized (FACE_LOCK) {
+            if (url.equals(urlByName.get(name))) {
+                return;
+            }
+            urlByName.put(name, url);
+            urlsDirty = true;
+        }
+        XposedBridge.log(TAG + ": 记录卡面原始 URL「" + name + "」");
+    }
+
+    /** 已有足够清晰的缓存就直接复用，避免每次刷卡都下载。 */
+    private static Bitmap cachedHighRes(String name) {
+        synchronized (FACE_LOCK) {
+            Bitmap cached = facesByName.get(name);
+            if (cached != null && !cached.isRecycled()
+                    && Math.min(cached.getWidth(), cached.getHeight()) >= HIGH_RES_EDGE_PX) {
+                return cached;
+            }
+        }
+        return null;
+    }
+
+    /** 只在「更大」时替换，保证不会用低清覆盖高清。 */
+    private static void storeIfLarger(String name, Bitmap bitmap) {
+        if (bitmap == null) {
+            return;
+        }
+        synchronized (FACE_LOCK) {
+            Bitmap old = facesByName.get(name);
+            if (old == null || Math.min(bitmap.getWidth(), bitmap.getHeight())
+                    > Math.min(old.getWidth(), old.getHeight())) {
+                facesByName.put(name, bitmap);
+            }
+        }
+    }
+
+    /**
+     * 按卡面原始 URL 下载高清卡面。
+     *
+     * <p>只允许在非主线程调用（调用点在 {@code IslandBridge} 的后台线程）。
+     * 超时给得很短：下不到就退回小图，绝不能因为网络把刷卡动画拖住。</p>
+     */
+    private static Bitmap fetchFromUrl(String name) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            return null; // 主线程绝不联网
+        }
+        String url;
+        synchronized (FACE_LOCK) {
+            url = urlByName.get(name);
+        }
+        if (url == null || url.isEmpty()) {
+            return null;
+        }
+        java.io.InputStream in = null;
+        java.net.HttpURLConnection conn = null;
+        try {
+            conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            conn.setConnectTimeout(2500);
+            conn.setReadTimeout(3500);
+            conn.setInstanceFollowRedirects(true);
+            if (conn.getResponseCode() != 200) {
+                XposedBridge.log(TAG + ": 卡面 URL 返回 " + conn.getResponseCode() + "「" + name + "」");
+                return null;
+            }
+            in = conn.getInputStream();
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            int read;
+            while ((read = in.read(chunk)) > 0) {
+                buffer.write(chunk, 0, read);
+                if (buffer.size() > 4 * 1024 * 1024) {
+                    break; // 防御性上限
+                }
+            }
+            byte[] data = buffer.toByteArray();
+            if (data.length == 0) {
+                return null;
+            }
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(data, 0, data.length, options);
+            int sample = 1;
+            while (Math.max(options.outWidth, options.outHeight) / sample > 1024) {
+                sample *= 2;
+            }
+            options.inJustDecodeBounds = false;
+            options.inSampleSize = sample;
+            options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length, options);
+            if (bitmap != null) {
+                XposedBridge.log(TAG + ": 已下载高清卡面「" + name + "」 "
+                        + bitmap.getWidth() + "x" + bitmap.getHeight()
+                        + "（" + (data.length / 1024) + "KB）");
+            }
+            return bitmap;
+        } catch (Throwable throwable) {
+            XposedBridge.log(TAG + ": 下载卡面失败「" + name + "」 " + throwable);
+            return null;
+        } finally {
+            closeQuietly(in);
+        }
+    }
+
+    static void persistUrls(Context context) {
+        if (context == null || !urlsDirty) {
+            return;
+        }
+        try {
+            File dir = new File(context.getExternalFilesDir(null), FACE_STORE_DIR);
+            if (!dir.exists() && !dir.mkdirs()) {
+                return;
+            }
+            StringBuilder out = new StringBuilder();
+            synchronized (FACE_LOCK) {
+                if (urlByName.isEmpty()) {
+                    return; // 空集合不落盘，避免像卡面那样被辅进程清空
+                }
+                for (java.util.Map.Entry<String, String> entry : urlByName.entrySet()) {
+                    out.append(entry.getKey()).append('\t').append(entry.getValue()).append('\n');
+                }
+                urlsDirty = false;
+            }
+            writeFile(new File(dir, "urls.txt"), out.toString().getBytes("UTF-8"));
+        } catch (Throwable ignored) {
+            // ignore
+        }
+    }
+
+    private static void loadUrlsIfNeeded(Context context) {
+        if (urlsLoaded || context == null) {
+            return;
+        }
+        urlsLoaded = true;
+        try {
+            File file = new File(new File(context.getExternalFilesDir(null), FACE_STORE_DIR),
+                    "urls.txt");
+            if (!file.isFile()) {
+                return;
+            }
+            String text = new String(readFile(file), "UTF-8");
+            int loaded = 0;
+            for (String line : text.split("\n")) {
+                String[] parts = line.split("\t");
+                if (parts.length < 2) {
+                    continue;
+                }
+                synchronized (FACE_LOCK) {
+                    urlByName.put(parts[0], parts[1]);
+                }
+                loaded++;
+            }
+            if (loaded > 0) {
+                XposedBridge.log(TAG + ": 已恢复 " + loaded + " 张卡的卡面原始 URL");
+            }
+        } catch (Throwable ignored) {
+            // ignore
         }
     }
 
@@ -456,10 +679,12 @@ final class IslandFaceCache {
             XposedBridge.log(TAG + ": 高清匹配「" + name + "」最佳距离="
                     + Math.round(bestDistance) + " 次佳=" + Math.round(secondBest)
                     + (bestFile == null ? "" : " 命中=" + bestFile.getName()));
-            // 实测结论：列表缩略图与磁盘大图在「平均色」维度上区分度不够 ——
-            // 曾把「京津冀互联互通卡」匹配到校园卡那张（距离 305135 vs 次佳 1175603，
-            // 看起来是「自信的错答」）。宁可要「正确但略糊」，也不要「清晰但错卡」，
-            // 因此这里暂时不采用匹配结果，只保留日志，等有更可靠的对应关系再启用。
+            // 1.7.1 重新启用。依据是实机日志：
+            //   高清匹配「京津冀互联互通卡」最佳距离=257140 次佳=888564
+            // 最佳比次佳好 3.4 倍，是「自信的正确答案」，而下面那道
+            // bestDistance <= secondBest*0.75 的闸门拦得住误配。
+            // 之所以必须启用：App 交给界面的最大卡面只有 157x98，甚至落盘恢复后
+            // 只剩 96x60，画到岛上（约 324x192）要放大 2~5 倍，必然发糊。
             if (!ENABLE_DISK_MATCH) {
                 return lowRes;
             }
@@ -859,6 +1084,22 @@ final class IslandFaceCache {
      * @param drawable 刚设置到 ImageView 上的 Drawable
      * @param view     目标 ImageView，可为 null
      */
+    /**
+     * 极廉价的前置判断：这个 Drawable 里是否含「卡面级大图」。
+     *
+     * <p>给 {@code View#setBackground} 钩子用。那个钩子在进程里触发极其频繁，
+     * 而 {@link #offerDrawable} 会向上找卡名（要遍历祖先），成本不低。
+     * 所以先用这个只做 instanceof + 尺寸比较的判断挡掉绝大多数调用。</p>
+     */
+    static boolean looksLikeBigBitmap(Drawable drawable) {
+        if (drawable == null) {
+            return false;
+        }
+        Bitmap bitmap = peekBitmap(drawable);
+        return bitmap != null && !bitmap.isRecycled()
+                && Math.min(bitmap.getWidth(), bitmap.getHeight()) >= HIGH_RES_EDGE_PX;
+    }
+
     static void offerDrawable(Drawable drawable, View view) {
         try {
             String idName = idNameOf(view);

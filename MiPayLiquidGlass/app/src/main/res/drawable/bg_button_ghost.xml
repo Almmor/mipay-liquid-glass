@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <corners android:radius="18dp" />
-    <solid android:color="#1FFFFFFF" />
-    <stroke
-        android:width="1dp"
-        android:color="#4DFFFFFF" />
-</shape>
+<!-- Miuix 次按钮：secondaryContainer 底 + 12dp 圆角 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/miuix_secondary_variant" />
+            <corners android:radius="12dp" />
+            <stroke android:width="1dp" android:color="@color/miuix_outline" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/miuix_secondary_container" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+</selector>

@@ -49,6 +49,7 @@ public final class CardFaceGrabber {
         installed = true;
         installImageViewHook(classLoader);
         installCardInfoHook(classLoader);
+        installBackgroundHook(classLoader);
     }
 
     /**
@@ -76,14 +77,71 @@ public final class CardFaceGrabber {
                         protected void afterHookedMethod(MethodHookParam param) {
                             try {
                                 IslandFaceCache.offerCardInfo(param.thisObject);
+                                // 顺手记下这张卡的应用通道（AID → TU / CU），
+                                // 交易详情页的「交易通道」一栏要用它。
+                                TradeDetailSheet.noteCardInfo(param.thisObject);
                             } catch (Throwable ignored) {
                                 // 截获失败绝不能影响宿主应用
                             }
                         }
                     });
             XposedBridge.log(TAG + ": 已安装 CardInfo#updateBackground 截获");
+            // 再挂 getCardArt()：它返回这张卡的「卡面原始 URL」。
+            // 有了 URL 就能自己下高清原图，彻底摆脱「只能拿到 157x98 列表小图」的模糊困局。
+            // 方法签名已用 dexdump 从本机安装的 APK 里核实：
+            //   Lcom/miui/tsmclient/entity/CardInfo;->getCardArt()Ljava/lang/String;
+            XposedHelpers.findAndHookMethod(cardInfo, "getCardArt", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    try {
+                        Object result = param.getResult();
+                        IslandFaceCache.offerCardArt(param.thisObject,
+                                result instanceof String ? (String) result : null);
+                    } catch (Throwable ignored) {
+                        // 截获失败绝不能影响宿主应用
+                    }
+                }
+            });
+            XposedBridge.log(TAG + ": 已安装 CardInfo#getCardArt 截获（卡面原始 URL）");
         } catch (Throwable throwable) {
             XposedBridge.log(TAG + ": 安装 CardInfo 截获失败 " + throwable);
+        }
+    }
+
+    /**
+     * 挂 {@code View#setBackground(Drawable)}（1.7.0 新增）。
+     *
+     * <p>为什么必须补这一条：卡面大图在不少页面上是设成 <b>背景</b> 的，而不是设给
+     * {@code ImageView}。此前只钩了 {@code setImageDrawable}，所以始终只能拿到列表里那张
+     * 157x98 的小图标 —— 岛上的卡面因此发糊，而 App 页面上同一张卡却是清晰的大图。</p>
+     *
+     * <p>这个钩子触发极其频繁，因此先用 {@link IslandFaceCache#looksLikeBigBitmap} 做一次
+     * 只含 instanceof 与尺寸比较的廉价筛选，绝大多数调用会在这里直接返回。</p>
+     */
+    private static void installBackgroundHook(ClassLoader classLoader) {
+        try {
+            XposedHelpers.findAndHookMethod("android.view.View", classLoader,
+                    "setBackground", Drawable.class, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            try {
+                                Object drawable = param.args == null || param.args.length == 0
+                                        ? null : param.args[0];
+                                if (!(drawable instanceof Drawable)
+                                        || !IslandFaceCache.looksLikeBigBitmap((Drawable) drawable)) {
+                                    return;
+                                }
+                                IslandFaceCache.offerDrawable((Drawable) drawable,
+                                        param.thisObject instanceof android.view.View
+                                                ? (android.view.View) param.thisObject : null);
+                            } catch (Throwable ignored) {
+                                // 截获失败绝不能影响宿主应用
+                            }
+                        }
+                    });
+            XposedBridge.log(TAG + ": 已安装 View#setBackground 截获（卡面大图）");
+        } catch (Throwable throwable) {
+            XposedBridge.log(TAG + ": 安装 setBackground 截获失败 " + throwable);
         }
     }
 

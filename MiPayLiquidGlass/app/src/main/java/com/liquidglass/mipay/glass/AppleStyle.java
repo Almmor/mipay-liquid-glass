@@ -72,6 +72,13 @@ public final class AppleStyle {
 
     /** 卡片圆角（pt/dp）。 */
     private static final float CARD_RADIUS_DP = 14f;
+    /**
+     * 余额卡片的圆角（对外暴露）。
+     *
+     * <p>卡详情页的充值按钮要与余额卡片圆角一致，两处必须取同一个值 ——
+     * 分别写 14f 是「看起来一样」，取同一个常量才是「保证一样」。</p>
+     */
+    public static final float BALANCE_CARD_RADIUS_DP = CARD_RADIUS_DP;
     /** 卡片内边距：左右 18pt、上下 20pt。 */
     private static final float CARD_PAD_H_DP = 18f;
     private static final float CARD_PAD_V_DP = 20f;
@@ -303,6 +310,98 @@ public final class AppleStyle {
         drawable.setColor(color);
         drawable.setCornerRadius(radius);
         return drawable;
+    }
+
+    // ======================================================================
+    // 卡详情页等页面的充值按钮（1.6.8）
+    // ======================================================================
+
+    /**
+     * 磨砂玻璃的底色：<b>天蓝纯色</b>。
+     *
+     * <p>1.6.8 起是「上浅下深的天蓝渐变」，1.7.1 按用户要求改为纯色 ——
+     * 他要的是「天蓝色纯色磨砂液态玻璃」。纯色底 + 上面盖一层
+     * {@link LiquidGlassDrawable}（负责毛玻璃的膨光与流光），
+     * 既有天蓝的辨识度，又保留液态玻璃的质感。</p>
+     */
+    private static final int RECHARGE_GLASS_SOLID = 0xFF34A0FF;
+    /** 天蓝玻璃上的文字色：白字，对比度足够。 */
+    private static final int RECHARGE_GLASS_TEXT = 0xFFFFFFFF;
+
+    /**
+     * 卡详情页的充值按钮：<b>天蓝纯色磨砂玻璃</b>，圆角与余额卡片一致（14pt）。
+     *
+     * <p>实现是两层叠加：底下是天蓝纯色（负责颜色），上面盖一层
+     * {@link LiquidGlassDrawable}（负责毛玻璃的膨光与流光）。两层共用同一个圆角，
+     * 所以高光与底色严丝合缝。</p>
+     */
+    public static void applyRechargeGlass(View view, Config cfg, float density, boolean dark) {
+        applyRechargeGlass(view, cfg, density, dark, CARD_RADIUS_DP, false);
+    }
+
+    /**
+     * 刷卡页（双击电源键）的充值按钮：<b>天蓝纯色磨砂玻璃 + 胶囊圆角</b>。
+     *
+     * <p>与卡详情页同色同材质，区别只在圆角 —— 这里的按钮是 Apple Pay 式药丸，
+     * 圆角取高度的一半，因此要用测量后的真实高度算，未测量时退回规格高度 32pt。</p>
+     */
+    public static void applyRechargeGlassCapsule(View view, Config cfg, float density,
+                                                 boolean dark) {
+        applyRechargeGlass(view, cfg, density, dark, 0f, true);
+    }
+
+    private static void applyRechargeGlass(View view, Config cfg, float density, boolean dark,
+                                           float radiusDp, boolean capsule) {
+        if (view == null) {
+            return;
+        }
+        float d = density <= 0f ? 3f : density;
+        try {
+            if (isAlreadyRechargeGlass(view)) {
+                return; // 幂等：同一棵视图树会被遍历多次
+            }
+            if (capsule && view instanceof TextView) {
+                applyButtonMetrics((TextView) view, d);
+            }
+            float radius = capsule
+                    ? (view.getHeight() > 0
+                            ? view.getHeight() * 0.5f : BUTTON_HEIGHT_DP * 0.5f * d)
+                    : radiusDp * d;
+
+            GradientDrawable base = new GradientDrawable();
+            base.setShape(GradientDrawable.RECTANGLE);
+            base.setColor(RECHARGE_GLASS_SOLID);
+            base.setCornerRadius(radius);
+
+            LiquidGlassDrawable frost = new LiquidGlassDrawable(cfg, radius, d, true, dark, 2.0f);
+            view.setBackground(new android.graphics.drawable.LayerDrawable(
+                    new Drawable[]{base, frost}));
+
+            if (view instanceof TextView) {
+                TextView tv = (TextView) view;
+                tv.setTextColor(RECHARGE_GLASS_TEXT);
+                tv.setTypeface(Typeface.create(FONT_SEMIBOLD, Typeface.NORMAL));
+                tv.setGravity(android.view.Gravity.CENTER);
+            }
+            android.util.Log.i("MiPayLiquidGlass/AppleStyle",
+                    "充值按钮 → 天蓝纯色磨砂玻璃 id=" + GlassChrome.entryNameOf(view)
+                            + " 圆角=" + Math.round(radius / d) + "pt");
+        } catch (Throwable ignored) {
+            // ignore
+        }
+    }
+
+    /** 是否已经套过我们的天蓝玻璃（避免重复遍历时反复重建 Drawable 造成闪动）。 */
+    private static boolean isAlreadyRechargeGlass(View view) {
+        Drawable background = view.getBackground();
+        if (!(background instanceof android.graphics.drawable.LayerDrawable)) {
+            return false;
+        }
+        android.graphics.drawable.LayerDrawable layers =
+                (android.graphics.drawable.LayerDrawable) background;
+        return layers.getNumberOfLayers() >= 2
+                && layers.getDrawable(0) instanceof GradientDrawable
+                && layers.getDrawable(1) instanceof LiquidGlassDrawable;
     }
 
     // ======================================================================

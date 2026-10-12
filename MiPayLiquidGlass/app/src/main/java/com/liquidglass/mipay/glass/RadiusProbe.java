@@ -50,6 +50,29 @@ public final class RadiusProbe {
         return resolve(view, 0);
     }
 
+    /**
+     * 只取「本视图自身」的圆角（背景 / outline / 反射），<b>不向父级回溯</b>。
+     *
+     * <p>用途：叠加在元素上的玻璃高光必须与该元素自身背景的圆角一致。
+     * 若沿用 {@link #resolve(View)} 的回溯行为，元素自己没有可读圆角时
+     * 会拿到父容器的大圆角，于是「高光圆角」比「背景圆角」大一圈，
+     * 在四角出现明显的错位（1.6.8 修复的正是这个）。</p>
+     */
+    public static float resolveOwn(View view) {
+        if (view == null) {
+            return 0f;
+        }
+        float radius = ownBackgroundRadius(view);
+        if (radius > 0f) {
+            return radius;
+        }
+        radius = outlineRadius(view);
+        if (radius > 0f) {
+            return radius;
+        }
+        return reflectiveRadius(view);
+    }
+
     private static float resolve(View view, int depth) {
         if (view == null || depth > MAX_ANCESTOR_DEPTH) {
             return 0f;

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -10,26 +10,23 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingStart="18dp"
+        android:paddingStart="16dp"
         android:paddingTop="42dp"
-        android:paddingEnd="18dp"
+        android:paddingEnd="16dp"
         android:paddingBottom="36dp">
 
         <!-- ============ 顶部标题 ============ -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/header_title"
-            android:textColor="@color/text_primary"
-            android:textSize="28sp"
-            android:textStyle="bold" />
+            android:text="@string/header_title"            style="@style/MiuixPageTitle" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="@string/header_subtitle"
-            android:textColor="@color/text_secondary"
+            android:textColor="@color/miuix_on_surface_container_variant"
             android:textSize="13sp" />
 
         <TextView
@@ -100,7 +97,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <!-- 模糊半径 -->
             <LinearLayout
@@ -278,7 +275,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -322,7 +319,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -366,7 +363,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -410,7 +407,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <!-- 玻璃边缘亮线 -->
             <LinearLayout
@@ -455,7 +452,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <!-- iOS 超级岛样式 -->
             <LinearLayout
@@ -500,7 +497,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <!-- iOS 刷卡动画 -->
             <LinearLayout
@@ -545,7 +542,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <!-- iOS 刷卡动画（SystemUI 方案 B） -->
             <LinearLayout
@@ -595,7 +592,7 @@
                 android:background="@drawable/bg_button_primary"
                 android:text="@string/btn_preview_island_ok"
                 android:textAllCaps="false"
-                android:textColor="#08122B"
+                android:textColor="@color/miuix_on_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
@@ -609,7 +606,7 @@
                 android:background="@drawable/bg_button_ghost"
                 android:text="@string/btn_preview_island_fail"
                 android:textAllCaps="false"
-                android:textColor="@color/text_primary"
+                android:textColor="@color/miuix_on_secondary_variant"
                 android:textSize="14sp" />
 
             <Button
@@ -622,7 +619,7 @@
                 android:background="@drawable/bg_button_ghost"
                 android:text="@string/btn_preview_island_sysui"
                 android:textAllCaps="false"
-                android:textColor="@color/text_primary"
+                android:textColor="@color/miuix_on_secondary_variant"
                 android:textSize="14sp" />
 
             <Button
@@ -635,7 +632,7 @@
                 android:background="@drawable/bg_button_ghost"
                 android:text="@string/btn_preview_island_sysui_fail"
                 android:textAllCaps="false"
-                android:textColor="@color/text_primary"
+                android:textColor="@color/miuix_on_secondary_variant"
                 android:textSize="14sp" />
 
             <Button
@@ -648,7 +645,7 @@
                 android:background="@drawable/bg_button_ghost"
                 android:text="@string/btn_pick_face"
                 android:textAllCaps="false"
-                android:textColor="@color/text_primary"
+                android:textColor="@color/miuix_on_secondary_variant"
                 android:textSize="14sp" />
 
             <TextView
@@ -778,7 +775,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -822,7 +819,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -866,7 +863,7 @@
                 android:layout_height="1dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#1FFFFFFF" />
+                android:background="@color/miuix_divider_line" />
 
             <!-- 卡面圆角（毫米） -->
             <LinearLayout
@@ -947,7 +944,7 @@
                 android:background="@drawable/bg_button_primary"
                 android:text="@string/btn_root_restart"
                 android:textAllCaps="false"
-                android:textColor="#08122B"
+                android:textColor="@color/miuix_on_primary"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
@@ -959,7 +956,7 @@
                 android:background="@drawable/bg_button_ghost"
                 android:text="@string/btn_root_check"
                 android:textAllCaps="false"
-                android:textColor="@color/text_primary"
+                android:textColor="@color/miuix_on_secondary_variant"
                 android:textSize="14sp" />
 
             <Button
@@ -970,7 +967,7 @@
                 android:background="@drawable/bg_button_ghost"
                 android:text="@string/btn_restart_systemui"
                 android:textAllCaps="false"
-                android:textColor="@color/text_primary"
+                android:textColor="@color/miuix_on_secondary_variant"
                 android:textSize="14sp" />
 
             <TextView

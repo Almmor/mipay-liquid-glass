@@ -41,10 +41,32 @@ public final class GlassChrome {
             "layout_balance_reminder"
     ));
 
-    /** 充值按钮（1.0.3 起改 Apple Pay 式淡蓝色胶囊）。 */
-    private static final Set<String> RECHARGE_BUTTON_IDS = new HashSet<>(Arrays.asList(
+    /**
+     * 刷卡页（双击电源键）的充值按钮：<b>天蓝纯色磨砂玻璃胶囊</b>。
+     *
+     * <p>来自反编译 {@code layout/switch_card_fragment} 的余额区
+     * {@code layout_balance_reminder}：金额在左、CTA 在右。</p>
+     */
+    private static final Set<String> SWIPE_RECHARGE_BUTTON_IDS = new HashSet<>(Arrays.asList(
             "btn_balance_reminder_recharge"
     ));
+
+    /**
+     * 卡详情页的充值按钮：<b>天蓝纯色磨砂玻璃</b>，圆角与余额卡片一致（14pt）。
+     *
+     * <p>{@code tv_top_up} / {@code tv_refresh} 来自反编译
+     * {@code layout}（{@code IssuedTransCardDetailOptionView}）：两者背景同为
+     * {@code blue_border_selector}，文字分别是「充值(String/card_detail_recharge_now)」
+     * 与「刷新(card_detail_refresh_now)」。实机 dump 到的资源名与文本一一对得上。</p>
+     */
+    private static final Set<String> DETAIL_RECHARGE_BUTTON_IDS = new HashSet<>(Arrays.asList(
+            "tv_top_up",
+            "tv_refresh",
+            "btn_recharge"
+    ));
+
+    /** 兼容旧调用：全部充值按钮 id。 */
+    private static final Set<String> RECHARGE_BUTTON_IDS = new HashSet<>();
 
     /**
      * 背景玻璃化的 ID 关键词：其余余额 / 充值类面板（卡详情页等）。
@@ -56,6 +78,11 @@ public final class GlassChrome {
     private static final String[] GLASS_PANEL_KEYWORDS = {
             "balance", "recharge", "topup", "top_up"
     };
+
+    static {
+        RECHARGE_BUTTON_IDS.addAll(SWIPE_RECHARGE_BUTTON_IDS);
+        RECHARGE_BUTTON_IDS.addAll(DETAIL_RECHARGE_BUTTON_IDS);
+    }
 
     private GlassChrome() {
     }
@@ -78,10 +105,42 @@ public final class GlassChrome {
         return name != null && BALANCE_PANEL_IDS.contains(name);
     }
 
-    /** 刷卡页充值按钮（{@code btn_balance_reminder_recharge}）。 */
+    /** 是否任意充值按钮（刷卡页胶囊 + 卡详情页圆角按钮）。 */
     public static boolean isRechargeButton(View view) {
+        return isSwipeRechargeButton(view) || isDetailRechargeButton(view);
+    }
+
+    /** 刷卡页（双击电源键）的充值按钮 → 天蓝纯色磨砂玻璃胶囊。 */
+    public static boolean isSwipeRechargeButton(View view) {
         String name = entryNameOf(view);
-        return name != null && RECHARGE_BUTTON_IDS.contains(name);
+        return name != null && SWIPE_RECHARGE_BUTTON_IDS.contains(name);
+    }
+
+    /** 卡详情页的充值 / 刷新按钮 → 天蓝纯色磨砂玻璃，圆角与余额卡片一致。 */
+    public static boolean isDetailRechargeButton(View view) {
+        String name = entryNameOf(view);
+        return name != null && DETAIL_RECHARGE_BUTTON_IDS.contains(name);
+    }
+
+    /**
+     * 其它页面的「充值按钮」：ID 命中充值关键词，且本身是可点击的文字控件。
+     *
+     * <p>为什么要跟面板区分：充值按钮与「余额面板」都可能命中
+     * {@code recharge} / {@code balance} 关键词，但按钮要做成天蓝磨砂玻璃、
+     * 面板要保持浅色毛玻璃，两者观感完全不同（1.6.8 新增）。</p>
+     */
+    public static boolean looksLikeRechargeButton(View view) {
+        String name = entryNameOf(view);
+        if (name == null || name.isEmpty()) {
+            return false;
+        }
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        boolean keyword = lower.contains("recharge")
+                || lower.contains("topup") || lower.contains("top_up");
+        if (!keyword) {
+            return false;
+        }
+        return view instanceof android.widget.TextView || view.isClickable();
     }
 
     /** 余额 / 充值关键词命中的「带背景面板」（卡详情页等）。 */
