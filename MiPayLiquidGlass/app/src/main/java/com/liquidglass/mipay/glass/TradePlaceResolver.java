@@ -105,13 +105,48 @@ final class TradePlaceResolver {
 
     private static String[] candidates(String name, String type) {
         String lower = type == null ? "" : type;
+        String base = normalize(name);
+        // 已经带「站」的站名不再补后缀，顺手去掉「xx站公交站」这类重复，
+        // 否则北京互通卡公交记录的站名很容易拼成检索不到的怪词。
+        boolean station = base.endsWith("站");
+        java.util.LinkedHashSet<String> set = new java.util.LinkedHashSet<>();
         if (lower.contains("公交") || lower.contains("巴士") || lower.contains("轮渡")) {
-            return new String[]{name + "公交站", name + "站", name};
+            if (!station) {
+                set.add(base + "公交站");
+                set.add(base + "站");
+            }
+        } else if (lower.contains("地铁") || lower.contains("轨道") || lower.contains("轻轨")) {
+            if (!station) {
+                set.add(base + "地铁站");
+                set.add(base + "站");
+            }
+        } else {
+            if (!station) {
+                set.add(base + "地铁站");
+                set.add(base + "公交站");
+                set.add(base + "站");
+            }
         }
-        if (lower.contains("地铁") || lower.contains("轨道") || lower.contains("轻轨")) {
-            return new String[]{name + "地铁站", name + "站", name};
+        set.add(base);
+        return set.toArray(new String[0]);
+    }
+
+    /**
+     * 把站名收拾成可检索的形态：去掉括号补充（「北京西站(北广场)」→「北京西站」）
+     * 与所有空白，避免线路名/换乘提示把 POI 检索带偏。
+     */
+    private static String normalize(String raw) {
+        String text = raw == null ? "" : raw.trim();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '(' || c == '（') {
+                if (i > 0) {
+                    text = text.substring(0, i);
+                }
+                break;
+            }
         }
-        return new String[]{name + "地铁站", name + "公交站", name + "站", name};
+        return text.replaceAll("\\s+", "").trim();
     }
 
     // ======================================================================

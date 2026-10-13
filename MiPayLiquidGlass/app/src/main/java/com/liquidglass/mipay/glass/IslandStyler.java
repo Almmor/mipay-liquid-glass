@@ -308,6 +308,55 @@ public final class IslandStyler {
         } catch (Throwable ignored) {
             // ignore
         }
+
+        // 命中岛时，再单独把 extras 里「可读文本」的值全部打出来。
+        // 实机里金额 / 余额未必都在 paramJSON 的 textInfo 里，靠这一行才能
+        // 抓到「刷卡成功」那条通知的真实字段（事故排查关键）。
+        if (looksLikeIsland) {
+            try {
+                XposedBridge.log(TAG + ": extrasTexts=" + extrasTexts(notification.extras));
+            } catch (Throwable ignored) {
+                // ignore
+            }
+        }
+    }
+
+    /** 把 extras 里所有可读文本按 key=value 形式拼成一行（用于抓真实字段）。 */
+    private static String extrasTexts(Bundle extras) {
+        if (extras == null) {
+            return "-";
+        }
+        StringBuilder builder = new StringBuilder();
+        try {
+            for (String key : extras.keySet()) {
+                if (key == null) {
+                    continue;
+                }
+                Object value = extras.get(key);
+                String text = readable(value);
+                if (text == null) {
+                    continue;
+                }
+                if (builder.length() > 0) {
+                    builder.append(" | ");
+                }
+                builder.append(key).append('=').append(cap(text, 200));
+            }
+        } catch (Throwable ignored) {
+            // ignore
+        }
+        return builder.length() == 0 ? "-" : builder.toString();
+    }
+
+    private static String readable(Object value) {
+        if (value instanceof CharSequence) {
+            String text = value.toString().trim();
+            return text.isEmpty() ? null : text;
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        return null;
     }
 
     private static String describe(RemoteViews rv) {

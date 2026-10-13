@@ -244,8 +244,20 @@ public final class TradeDetailSheet {
             new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA)
     };
     private static final String[] SEPARATORS = {"-", "—", "–", "－", "至", "→", "~", "到"};
+    /**
+     * 交易记录里的「行程未结束」占位词。出站（或下车扣费）之前，应用会把终点写成
+     * 这类词，例如截图里的「丰台南路-行程中」。
+     *
+     * <p>它们不是真实地点：如果不过滤，{@link #splitPlace} 会把 {@code 丰台南路-行程中}
+     * 拆成两段并判定为「路线」，行程区块就会显示成「起点 丰台南路 / 终点 行程中」这种
+     * 假行程，而正确的结果应当是只显示单点「交易地点 丰台南路」。</p>
+     */
+    private static final String[] PENDING_TERMS = {
+            "行程中", "行程进行中", "进行中", "待扣费", "待扣款", "扣费中", "结算中",
+            "交易中", "处理中", "未完成", "待出站", "出站中", "待补登"
+    };
     private static final String[] PLACEHOLDERS = {
-            "未知", "不详", "未知站", "无", "--", "-", "null", "N/A"
+            "未知", "不详", "未知站", "未知站点", "无", "--", "-", "null", "N/A"
     };
 
     private TradeDetailSheet() {
@@ -642,6 +654,12 @@ public final class TradeDetailSheet {
             putExtra(map, item, "mTradeType", "交易类型码");
             putExtra(map, item, "mTerminalNo", "终端编号");
             putExtra(map, item, "mTradeID", "交易凭证号");
+            // 下面三个字段应用界面同样没有显示，但北京互通卡（交通联合）公交记录里
+            // 列表首行常常只是线路名（如「1路」），真正的站点写在凭证里，
+            // 所以必须一起抓出来，否则「交易地点」和站点解析都拿不到站名。
+            putExtra(map, item, "mStartToEndStation", "起终点站");
+            putExtra(map, item, "mAppFunctionStationDescription", "站点描述");
+            putExtra(map, item, "mBusinessName", "业务名称");
             String channel = map.get("通道码");
             if (channel == null || channel.isEmpty()) {
                 channel = map.get("交通类型");
@@ -703,6 +721,61 @@ public final class TradeDetailSheet {
             java.util.LinkedHashMap<String, String> map = EXTRAS.get(row);
             return map == null ? null : new java.util.LinkedHashMap<>(map);
         }
+    }
+
+    /** 读凭证里某一项（按界面标签名），没有返回 null。 */
+    private static String extraOf(Trade trade, String label) {
+        if (trade == null || trade.extras == null) {
+            return null;
+        }
+        String value = trade.extras.get(label);
+        if (value == null) {
+            return null;
+        }
+        value = value.trim();
+        return value.isEmpty() || "null".equals(value) ? null : value;
+    }
+
+    /**
+     * 取最能代表「站点」的一串文字。
+     *
+     * <p>北京互通卡（交通联合）公交记录的列表首行经常是线路名（如「1路」「快速直达专线」），
+     * 真正的站点写在应用界面上看不到的 {@code mStartToEndStation} /
+     * {@code mAppFunctionStationDescription} 里。所以这里在列表首行看着像线路名时，
+     * 优先用凭证里的起终点站，其次才是列表行文字；列表行看着像站名时则以它为准。
+     * 这与行旅录（TU-Reader）的站点定位顺序「站点 → 线路 → 交通类型」一致。</p>
+     */
+    private static String stationOf(Trade trade) {
+        if (trade == null) {
+            return null;
+        }
+        String base = trade.station == null ? "" : trade.station.trim();
+        String startEnd = extraOf(trade, "起终点站");
+        String described = extraOf(trade, "站点描述");
+        if (looksLikeLine(base)) {
+            return firstNonEmpty(startEnd, described, base);
+        }
+        return firstNonEmpty(base, startEnd, described);
+    }
+
+    /**
+     * 一串文字是否更像「线路名」而不是「站点名」。
+     *
+     * <p>只认最典型的公交线路写法，避免把真正的站名（如「八里庄路」）误判成线路。</p>
+     */
+    private static boolean looksLikeLine(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        String value = text.trim();
+        // 1路 / 夜1路 / 专10路 / 特8内环 / 10号线 / 快速直达专线 / 机场大巴
+        if (value.matches("^(夜|专|特|快|慢|区间|快专|节假日|观光|机场)?[0-9]{1,3}路.*$")) {
+            return true;
+        }
+        if (value.matches("^[0-9]{1,3}号线.*$")) {
+            return true;
+        }
+        return value.contains("专线") || value.contains("快线") || value.endsWith("环线");
     }
 
     /** 只保留数字（用于跨格式比对时间，如 19:28:13 ↔ 192813）。 */
@@ -931,8 +1004,10 @@ public final class TradeDetailSheet {
                 return null;
             }
             Trip trip = new Trip();
-            trip.boardingStation = boarding ? clicked.station : best.station;
-            trip.alightingStation = boarding ? best.station : clicked.station;
+            // 取「最像站点」的文字（线路名会被凭证里的起终点站替换掉），
+            // 这样北京互通卡公交也能画到正确的上车站 → 下车站。
+            trip.boardingStation = boarding ? stationOf(clicked) : stationOf(best);
+            trip.alightingStation = boarding ? stationOf(best) : stationOf(clicked);
             return trip;
         } catch (Throwable ignored) {
             return null;
@@ -961,7 +1036,16 @@ public final class TradeDetailSheet {
             return false;
         }
         String type = trade.type == null ? "" : trade.type;
-        return type.contains("公交") || type.contains("巴士") || isZeroAmount(trade.amount);
+        if (type.contains("公交") || type.contains("巴士") || type.contains("轮渡")) {
+            return true;
+        }
+        // 地铁/轨道类记录即使金额为 0.00 元（进站待扣费），也不是公交上车记录，
+        // 不能拿去做「上车站 → 下车站」配对。
+        if (type.contains("地铁") || type.contains("轨道") || type.contains("轻轨")
+                || type.contains("有轨")) {
+            return false;
+        }
+        return isZeroAmount(trade.amount);
     }
 
     /** 金额是否为 0.00（上车记录的标志）。 */
@@ -1255,7 +1339,8 @@ public final class TradeDetailSheet {
             tripCard.addView(addRow(activity, d, dark, "起点", plan.labels.get(0), true).root);
             tripCard.addView(addRow(activity, d, dark, "终点", plan.labels.get(1), true).root);
         } else {
-            tripCard.addView(addRow(activity, d, dark, "站点",
+            // 单点交易（含「行程中」这种未结束的记录）：不编造路线，只给出真实交易地点。
+            tripCard.addView(addRow(activity, d, dark, "交易地点",
                     plan != null && !plan.labels.isEmpty() ? plan.labels.get(0) : trade.station,
                     true).root);
         }
@@ -1582,7 +1667,12 @@ public final class TradeDetailSheet {
     private static Plan planFor(Trade trade, Trip trip) {
         try {
             String type = trade.type == null ? "" : trade.type.trim();
-            String raw = trade.station == null ? "" : trade.station.trim();
+            // 北京互通卡公交记录的首行可能只是线路名，真正的站点在凭证字段里，
+            // 所以统一走 stationOf 取「最像站点」的那串文字。
+            String raw = stationOf(trade);
+            if (raw == null) {
+                raw = "";
+            }
             boolean bus = type.contains("公交") || type.contains("巴士")
                     || type.contains("轮渡");
             boolean zero = isZeroAmount(trade.amount);
@@ -1592,14 +1682,18 @@ public final class TradeDetailSheet {
                 String up = trip == null ? null : clean(trip.boardingStation);
                 String down = trip == null ? null : clean(trip.alightingStation);
                 if (up == null && down == null) {
-                    String one = firstPart(raw);
-                    if (one == null) {
-                        return null;
-                    }
-                    if (zero) {
-                        up = one;
-                    } else {
-                        down = one;
+                    // 单条记录里可能直接写着「上车站-下车站」，先用分隔符拆一次；
+                    // 拆不开再按 0.00 元判断它是上车还是下车记录。
+                    String[] parts = splitPlace(raw);
+                    if (parts.length >= 2) {
+                        up = parts[0];
+                        down = parts[1];
+                    } else if (parts.length == 1) {
+                        if (zero) {
+                            up = parts[0];
+                        } else {
+                            down = parts[0];
+                        }
                     }
                 }
                 if (up != null && down != null) {
@@ -1612,6 +1706,10 @@ public final class TradeDetailSheet {
                     return plan;
                 }
                 String only = up != null ? up : down;
+                if (only == null) {
+                    // 站点文字确实拿不到（凭证字段也没有）时，不编造地点。
+                    return null;
+                }
                 plan.mode = TradeMapRenderer.MODE_POINT;
                 plan.labels.add(only);
                 plan.keywords.add(only);
@@ -1624,6 +1722,9 @@ public final class TradeDetailSheet {
             }
             String[] parts = splitPlace(raw);
             Plan plan = new Plan();
+            // 「行程中」这类占位终点已在 splitPlace/clean 里被剔除；这里再记一笔，
+            // 便于把副标题写成「行程进行中」而不是泛泛的「不完整交易」。
+            boolean pending = containsPendingTerm(raw);
             if (parts.length >= 2) {
                 plan.mode = TradeMapRenderer.MODE_ROUTE;
                 plan.labels.add(parts[0]);
@@ -1632,12 +1733,21 @@ public final class TradeDetailSheet {
                 plan.keywords.add(parts[1]);
                 plan.reason = "地铁行程：" + parts[0] + " → " + parts[1];
             } else {
+                // 只剩一段：此时它是唯一的真实交易地点（例：丰台南路-行程中 → 丰台南路）。
+                String one = parts.length >= 1 ? parts[0] : null;
+                if (one == null) {
+                    return null;
+                }
                 plan.mode = TradeMapRenderer.MODE_POINT;
-                String one = parts.length >= 1 ? parts[0] : raw;
                 plan.labels.add(one);
                 plan.keywords.add(one);
-                plan.reason = zero ? "进站记录（0.00 元，出站扣费）"
-                        : "不完整交易：仅记录到站点";
+                if (pending) {
+                    plan.reason = "行程进行中：仅记录到上车站点";
+                } else if (zero) {
+                    plan.reason = "进站记录（0.00 元，出站扣费）";
+                } else {
+                    plan.reason = "单点交易记录";
+                }
             }
             return plan;
         } catch (Throwable ignored) {
@@ -1698,7 +1808,26 @@ public final class TradeDetailSheet {
                 return null;
             }
         }
+        // 「行程中」「待扣费」这类占位终点不是真实地点，必须当作缺失处理。
+        for (String pending : PENDING_TERMS) {
+            if (value.equalsIgnoreCase(pending)) {
+                return null;
+            }
+        }
         return value;
+    }
+
+    /** 交易地点里是否夹带「行程未结束」占位词（如「行程中」「待扣费」）。 */
+    private static boolean containsPendingTerm(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return false;
+        }
+        for (String term : PENDING_TERMS) {
+            if (raw.contains(term)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String mapTitle(Plan plan, Trade trade) {
