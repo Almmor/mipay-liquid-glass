@@ -17,6 +17,8 @@ MiPayLiquidGlass-v*.apk
 MiPayLiquidGlass-Root-v*.zip
 !MiPayLiquidGlass-v2.0.0.apk
 !MiPayLiquidGlass-Root-v2.0.0.zip
+!MiPayLiquidGlass-v2.1.0.apk
+!MiPayLiquidGlass-Root-v2.1.0.zip
 
 # ---- 第三方原始 APK（小米版权，仅本地反编译分析用，不入库）----
 小米智能卡_*.apk

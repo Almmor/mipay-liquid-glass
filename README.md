@@ -7,8 +7,8 @@
 
 | 组成 | 形态 | 作用 |
 | --- | --- | --- |
-| **LSPosed 模块** | APK（`MiPayLiquidGlass-v2.0.0.apk`） | 运行时把刷卡页、选卡页、卡详情、支付确认弹窗与浮层改造成液态玻璃材质，**完整保留设备卡面**；内置设置界面与「一键重启小米智能卡 / 重启 SystemUI」（Root） |
-| **Root 模块** | Magisk / KernelSU zip（`MiPayLiquidGlass-Root-v2.0.0.zip`） | 开启系统级窗口模糊能力，并补齐超级岛能力属性、开机自动安装上面的 APK |
+| **LSPosed 模块** | APK（`MiPayLiquidGlass-v2.1.0.apk`） | 运行时把刷卡页、选卡页、卡详情、支付确认弹窗与浮层改造成液态玻璃材质，**完整保留设备卡面**；内置设置界面与「一键重启小米智能卡 / 重启 SystemUI」（Root） |
+| **Root 模块** | Magisk / KernelSU zip（`MiPayLiquidGlass-Root-v2.1.0.zip`） | 开启系统级窗口模糊能力，并补齐超级岛能力属性、开机自动安装上面的 APK |
 
 三条核心行为边界：
 
@@ -181,8 +181,8 @@ iOS 液态玻璃的招牌特征是**折射**：玻璃边缘把背后的内容扭
 
 ```
 mi pay supports liquid glass/
-├── MiPayLiquidGlass-v2.0.0.apk         ← 装好的 LSPosed 模块（可直接安装）
-├── MiPayLiquidGlass-Root-v2.0.0.zip    ← Root 模块（Magisk / KernelSU 直接刷入）
+├── MiPayLiquidGlass-v2.1.0.apk         ← 装好的 LSPosed 模块（可直接安装）
+├── MiPayLiquidGlass-Root-v2.1.0.zip    ← Root 模块（Magisk / KernelSU 直接刷入）
 │
 ├── MiPayLiquidGlass/                    ← LSPosed 模块源码工程
 │   ├── settings.gradle.kts
@@ -240,7 +240,7 @@ mi pay supports liquid glass/
 
 ### 方式一：一体化安装（推荐）
 
-1. 用 Magisk / KernelSU 刷入 `MiPayLiquidGlass-Root-v2.0.0.zip`；
+1. 用 Magisk / KernelSU 刷入 `MiPayLiquidGlass-Root-v2.1.0.zip`；
 2. 重启设备 —— 开机后 Root 模块会自动安装 `MiPayLiquidGlass.apk`；
 3. 打开 **LSPosed 管理器 → 模块 → 小米智能卡 · 液态玻璃**，启用并确认作用域勾选了
    `com.miui.tsmclient`（以及可选的 `com.mipay.wallet`），
@@ -251,7 +251,7 @@ mi pay supports liquid glass/
 
 ### 方式二：手动安装
 
-1. 直接安装 `MiPayLiquidGlass-v2.0.0.apk`；
+1. 直接安装 `MiPayLiquidGlass-v2.1.0.apk`；
 2. 在 LSPosed 中启用模块并勾选作用域；
 3. 重启目标应用（建议重启设备以确保模糊属性生效）。
 
@@ -417,6 +417,23 @@ LSPosed 侧日志在 LSPosed 管理器的日志页，过滤 tag `MiPayLiquidGlas
 ---
 
 ## 更新日志
+
+### v2.1.0
+
+**本版改动**
+
+- **修复交易详情「行程」区块误显示路线**：单点交易（含「行程中」这类未结束的记录）不再编造
+  「起点 / 终点」路线，改为显示真实 **「交易地点」**；只有起终点都有效时才渲染路线，
+  并新增 `PENDING_TERMS`（行程中、待扣费、进行中…）与 `PLACEHOLDERS` 过滤，避免把状态文案当作站点。
+- **修复超级岛不显示交易金额与余额**：官方成功文案是一整串「支付 %1$s元 | 余额 %2$s元」，
+  旧解析逐个字段独立判断，`"¥"`（<2 字符）与 `"2.00"`（无中文 / 无币符）双双被丢弃。
+  现按 `|｜丨` 把文案拆成语义段，**余额优先解析并从金额匹配范围中剔除**，同时隔离
+  「刷卡失败」等状态文案，保证它永远不会被当成金额；金额/余额缺失时再逐段兜底。
+- **修复北京互通卡（交通联合）公交站点获取不到**：读取宿主 `TradeLog` 中界面不可见的
+  `mStartToEndStation`（起终点站）、`mAppFunctionStationDescription`（站点描述）、
+  `mBusinessName`（业务名称）作为站点兜底；`TradePlaceResolver` 重写候选站名归一化与去重
+  （剥离「(…)」与空白、已以「站」结尾不再补「站」），定位链路改为高德 POI（5s 超时）失败后回退系统地理编码。
+- 详细的历史改动见下方 v2.0.0 及更早各条。
 
 ### v2.0.0
 
