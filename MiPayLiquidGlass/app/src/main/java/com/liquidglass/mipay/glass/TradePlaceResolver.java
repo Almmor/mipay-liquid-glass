@@ -4,6 +4,7 @@ import android.content.Context;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
+import android.location.LocationListener;
 import android.location.LocationManager;
 
 import java.lang.reflect.InvocationHandler;
@@ -42,6 +43,8 @@ final class TradePlaceResolver {
     private static final String TAG = "MiPayLiquidGlass/Place";
     /** 单次 POI 检索的最长等待（毫秒）。 */
     private static final long POI_TIMEOUT_MS = 5000L;
+    /** 主动获取当前定位的最长等待（毫秒）。 */
+    private static final long CURRENT_LOCATION_TIMEOUT_MS = 6000L;
     /** 以最后已知位置为中心的检索半径（米）。 */
     private static final int SEARCH_RADIUS_METER = 50000;
     /** 最后已知位置的最大可接受「年龄」（毫秒）：太旧说明用户早已换城市。 */
@@ -375,8 +378,161 @@ final class TradePlaceResolver {
     // 位置与坐标转换
     // ======================================================================
 
+    /**
+     * 主动定位并反查地址，用于「交易地点解析失败 → 自动拉取当前定位」。
+     *
+     * <p>必须先请求一次单次定位（不能用最后已知位置顶替，用户很可能已经换地方），
+     * 再反查行政区；定位或权限不可用时退回最后已知位置。结果统一为 GCJ-02。</p>
+     *
+     * <p><b>必须在后台线程调用</b>（最长阻塞 {@link #CURRENT_LOCATION_TIMEOUT_MS}），
+     * 主线程调用时只读最后已知位置，避免卡住宿主界面。</p>
+     */
+    static Place currentPlace(Context context) {
+        if (context == null) {
+            return null;
+        }
+        Location location = currentLocation(context);
+        if (location == null) {
+            double[] known = lastKnown(context);
+            if (known == null) {
+                log("自动定位失败：没有可用的当前位置");
+                return null;
+            }
+            Place place = new Place();
+            place.lat = known[0];
+            place.lon = known[1];
+            place.source = "last-known";
+            log("自动定位退回最后已知位置：" + round(known[0]) + "," + round(known[1]));
+            return place;
+        }
+        double[] gcj = wgs84ToGcj02(location.getLatitude(), location.getLongitude());
+        Place place = new Place();
+        place.lat = gcj[0];
+        place.lon = gcj[1];
+        place.source = "current";
+        reverseGeocode(context, location, place);
+        log("自动获取当前定位：" + round(place.lat) + "," + round(place.lon)
+                + " 名称=" + place.name + " 地址=" + place.address);
+        return place;
+    }
+
+    /** 请求一次当前定位；失败返回 {@code null}。 */
+    private static Location currentLocation(Context context) {
+        try {
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                // 主线程不能等定位回调，直接读缓存
+                return lastKnownLocation(context);
+            }
+            final LocationManager manager =
+                    (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
+            if (manager == null) {
+                return null;
+            }
+            List<String> providers;
+            try {
+                providers = manager.getProviders(true);
+            } catch (Throwable ignored) {
+                return lastKnownLocation(context);
+            }
+            if (providers == null || providers.isEmpty()) {
+                return lastKnownLocation(context);
+            }
+            final CountDownLatch latch = new CountDownLatch(1);
+            final Location[] result = new Location[1];
+            LocationListener listener = new LocationListener() {
+                @Override
+                public void onLocationChanged(Location location) {
+                    if (location == null) {
+                        return;
+                    }
+                    synchronized (result) {
+                        if (result[0] == null || location.getTime() > result[0].getTime()) {
+                            result[0] = location;
+                        }
+                    }
+                    latch.countDown();
+                }
+
+                @Override
+                public void onStatusChanged(String provider, int status, android.os.Bundle extras) {
+                    // ignore
+                }
+
+                @Override
+                public void onProviderEnabled(String provider) {
+                    // ignore
+                }
+
+                @Override
+                public void onProviderDisabled(String provider) {
+                    // ignore
+                }
+            };
+            for (String provider : providers) {
+                try {
+                    manager.requestSingleUpdate(provider, listener,
+                            android.os.Looper.getMainLooper());
+                } catch (Throwable ignored) {
+                    // 无权限或 provider 不可用：继续尝试下一个
+                }
+            }
+            try {
+                latch.await(CURRENT_LOCATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            try {
+                manager.removeUpdates(listener);
+            } catch (Throwable ignored) {
+                // ignore
+            }
+            if (result[0] != null) {
+                return result[0];
+            }
+        } catch (Throwable ignored) {
+            // 走最后已知位置
+        }
+        return lastKnownLocation(context);
+    }
+
+    /** 把定位坐标反查成地址名称 / 城市 / 行政区（坐标必须是 WGS-84）。 */
+    private static void reverseGeocode(Context context, Location location, Place place) {
+        try {
+            Geocoder geocoder = new Geocoder(context, Locale.CHINA);
+            List<Address> list = geocoder.getFromLocation(
+                    location.getLatitude(), location.getLongitude(), 1);
+            if (list == null || list.isEmpty()) {
+                return;
+            }
+            Address address = list.get(0);
+            place.name = firstNonEmpty(address.getFeatureName(),
+                    address.getThoroughfare(), address.getSubLocality(),
+                    address.getLocality());
+            place.address = address.getAddressLine(0);
+            place.city = address.getLocality();
+            place.district = address.getSubLocality();
+        } catch (Throwable throwable) {
+            log("反查当前地址失败：" + describe(throwable));
+        }
+    }
+
+    private static String firstNonEmpty(String... values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
     /** 读「最后已知位置」（不主动定位），转成 GCJ-02；太旧或没有就返回 null。 */
     private static double[] lastKnown(Context context) {
+        Location best = lastKnownLocation(context);
+        return best == null ? null : wgs84ToGcj02(best.getLatitude(), best.getLongitude());
+    }
+
+    /** 读「最后已知位置」原始坐标（WGS-84）；太旧或没有就返回 null。 */
+    private static Location lastKnownLocation(Context context) {
         try {
             LocationManager manager =
                     (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
@@ -404,7 +560,7 @@ final class TradePlaceResolver {
             if (System.currentTimeMillis() - best.getTime() > LOCATION_MAX_AGE_MS) {
                 return null;
             }
-            return wgs84ToGcj02(best.getLatitude(), best.getLongitude());
+            return best;
         } catch (Throwable ignored) {
             return null;
         }

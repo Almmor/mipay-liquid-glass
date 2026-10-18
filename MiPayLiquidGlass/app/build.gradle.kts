@@ -10,8 +10,8 @@ android {
         applicationId = "com.liquidglass.mipay"
         minSdk = 26
         targetSdk = 34
-        versionCode = 52
-        versionName = "2.1.0"
+        versionCode = 53
+        versionName = "2.2.0"
 
         // Xposed 模块无需多语言资源压缩之外的额外配置
         resourceConfigurations += listOf("zh", "en")

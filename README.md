@@ -7,8 +7,8 @@
 
 | 组成 | 形态 | 作用 |
 | --- | --- | --- |
-| **LSPosed 模块** | APK（`MiPayLiquidGlass-v2.1.0.apk`） | 运行时把刷卡页、选卡页、卡详情、支付确认弹窗与浮层改造成液态玻璃材质，**完整保留设备卡面**；内置设置界面与「一键重启小米智能卡 / 重启 SystemUI」（Root） |
-| **Root 模块** | Magisk / KernelSU zip（`MiPayLiquidGlass-Root-v2.1.0.zip`） | 开启系统级窗口模糊能力，并补齐超级岛能力属性、开机自动安装上面的 APK |
+| **LSPosed 模块** | APK（`MiPayLiquidGlass-v2.2.0.apk`） | 运行时把刷卡页、选卡页、卡详情、支付确认弹窗与浮层改造成液态玻璃材质，**完整保留设备卡面**；内置设置界面与「一键重启小米智能卡 / 重启 SystemUI」（Root） |
+| **Root 模块** | Magisk / KernelSU zip（`MiPayLiquidGlass-Root-v2.2.0.zip`） | 开启系统级窗口模糊能力，并补齐超级岛能力属性、开机自动安装上面的 APK |
 
 三条核心行为边界：
 
@@ -181,8 +181,8 @@ iOS 液态玻璃的招牌特征是**折射**：玻璃边缘把背后的内容扭
 
 ```
 mi pay supports liquid glass/
-├── MiPayLiquidGlass-v2.1.0.apk         ← 装好的 LSPosed 模块（可直接安装）
-├── MiPayLiquidGlass-Root-v2.1.0.zip    ← Root 模块（Magisk / KernelSU 直接刷入）
+├── MiPayLiquidGlass-v2.2.0.apk         ← 装好的 LSPosed 模块（可直接安装）
+├── MiPayLiquidGlass-Root-v2.2.0.zip    ← Root 模块（Magisk / KernelSU 直接刷入）
 │
 ├── MiPayLiquidGlass/                    ← LSPosed 模块源码工程
 │   ├── settings.gradle.kts
@@ -240,7 +240,7 @@ mi pay supports liquid glass/
 
 ### 方式一：一体化安装（推荐）
 
-1. 用 Magisk / KernelSU 刷入 `MiPayLiquidGlass-Root-v2.1.0.zip`；
+1. 用 Magisk / KernelSU 刷入 `MiPayLiquidGlass-Root-v2.2.0.zip`；
 2. 重启设备 —— 开机后 Root 模块会自动安装 `MiPayLiquidGlass.apk`；
 3. 打开 **LSPosed 管理器 → 模块 → 小米智能卡 · 液态玻璃**，启用并确认作用域勾选了
    `com.miui.tsmclient`（以及可选的 `com.mipay.wallet`），
@@ -251,7 +251,7 @@ mi pay supports liquid glass/
 
 ### 方式二：手动安装
 
-1. 直接安装 `MiPayLiquidGlass-v2.1.0.apk`；
+1. 直接安装 `MiPayLiquidGlass-v2.2.0.apk`；
 2. 在 LSPosed 中启用模块并勾选作用域；
 3. 重启目标应用（建议重启设备以确保模糊属性生效）。
 
@@ -417,6 +417,18 @@ LSPosed 侧日志在 LSPosed 管理器的日志页，过滤 tag `MiPayLiquidGlas
 ---
 
 ## 更新日志
+
+### v2.2.0
+
+**本版改动**
+
+- **新增「未收取费用」记录**：读卡 / 刷卡失败时自动生成一条记录，并直接注入宿主交易记录列表；
+  列表行沿用原生样式，类型显示「未收取费用」、金额显示「—」、副标题「读卡失败，请重试」。
+  点开的详情页与其他交易记录完全一致，状态显示红色「未收取费用」，并提示「读卡失败，请重新刷卡」。
+- **交易地点定位兜底**：无法从交易记录解析出正确地点时，自动发起当前定位并反向地理编码，
+  交易地点、所属区域与地图均回填当前定位；定位失败时显示「未能获取定位」。
+- **记录去重与过滤**：5 秒内同一失败只记一次，最多保留 20 条；充值 / 退款 / 转账等
+  与读卡无关的失败不会生成记录。
 
 ### v2.1.0
 

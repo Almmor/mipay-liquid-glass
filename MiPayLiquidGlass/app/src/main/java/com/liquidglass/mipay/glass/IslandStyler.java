@@ -187,6 +187,12 @@ public final class IslandStyler {
             return;
         }
 
+        // 刷卡 / 读卡失败时补一条「未收取费用」记录，稍后由 TradeDetailSheet
+        // 插进宿主交易记录列表（列表与详情页都走宿主原生样式）。
+        if (!data.success) {
+            FailedCardStore.record(context, data);
+        }
+
         // 只做无害的样式微调（标题转白、隐藏右侧图标），不替换 RemoteViews
         if (cfg.islandStyle && mainRv != null) {
             styleOriginal(mainRv);

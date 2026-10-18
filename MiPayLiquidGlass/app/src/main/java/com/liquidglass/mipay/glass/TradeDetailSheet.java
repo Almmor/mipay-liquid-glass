@@ -1,6 +1,7 @@
 package com.liquidglass.mipay.glass;
 
 import android.app.Activity;
+import android.app.AndroidAppHelper;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -259,6 +260,16 @@ public final class TradeDetailSheet {
     private static final String[] PLACEHOLDERS = {
             "未知", "不详", "未知站", "未知站点", "无", "--", "-", "null", "N/A"
     };
+    /** 读卡失败生成的合成记录在列表第一行显示的类型。 */
+    private static final String UNREAD_TYPE = "未收取费用";
+    /** 合成记录的站点列文案。 */
+    private static final String UNREAD_PLACE = "读卡失败，请重试";
+    /** 合成记录的内部标记，写在 {@code TradeLog.mAtc}（宿主界面不展示该字段）。 */
+    private static final String UNREAD_MARK = "LIQUIDGLASS_UNREAD";
+    /** 读卡失败状态的强调色（红色）。 */
+    private static final int ERROR_RED = 0xFFE5484D;
+    /** 每个列表适配器已注入的失败记录版本；变化时才重新注入，避免反复改动数据源。 */
+    private static final Map<Object, Long> INJECTED_VERSION = new WeakHashMap<>();
 
     private TradeDetailSheet() {
     }
@@ -295,6 +306,14 @@ public final class TradeDetailSheet {
      * @return 是否识别为交易记录条目（识别成功后已挂上点击监听）
      */
     static boolean attachIfRecordItem(View view, Config cfg) {
+        return attachIfRecordItem(view, cfg, false);
+    }
+
+    /**
+     * @param rebind 列表复用时强制重新绑定（重新读字段、重挂点击），
+     *               否则回收后的行会保留上一条记录的点击数据。
+     */
+    private static boolean attachIfRecordItem(View view, Config cfg, boolean rebind) {
         try {
             if (cfg != null) {
                 config = cfg;
@@ -310,12 +329,31 @@ public final class TradeDetailSheet {
             if (container == null || !(container instanceof ViewGroup)) {
                 return false;
             }
-            synchronized (ATTACHED) {
-                if (ATTACHED.containsKey(container)) {
-                    return true;
+            if (rebind) {
+                synchronized (ATTACHED) {
+                    ATTACHED.remove(container);
+                }
+                // 行被回收复用后必须丢掉上一条记录的凭证缓存，否则会串数据
+                synchronized (CHANNEL) {
+                    CHANNEL.remove(container);
+                    EXTRAS.remove(container);
+                }
+            } else {
+                synchronized (ATTACHED) {
+                    if (ATTACHED.containsKey(container)) {
+                        return true;
+                    }
                 }
             }
             final Trade trade = readTrade(container);
+            // 合成「未收取费用」行：宿主按 0.00 元渲染金额，这里换成一笔没有金额的失败记录
+            if (isUnreadCard(trade)) {
+                trade.amount = "—";
+                View value = findByEntryName(container, "tv_value");
+                if (value instanceof TextView) {
+                    ((TextView) value).setText("—");
+                }
+            }
             if (!channelProbed) {
                 channelProbed = true;
                 probeRow(container);
@@ -394,6 +432,202 @@ public final class TradeDetailSheet {
         trade.amount = textOf(container, "tv_value");
         trade.time = textOf(container, "tv_sub_value");
         return trade;
+    }
+
+    /** 是否是模块生成的「未收取费用」记录。 */
+    private static boolean isUnreadCard(Trade trade) {
+        return trade != null && trade.type != null && trade.type.contains(UNREAD_TYPE);
+    }
+
+    // ======================================================================
+    // 「未收取费用」记录注入
+    // ======================================================================
+
+    /**
+     * 把读卡失败记录插进宿主的交易列表数据源。
+     *
+     * <p>宿主列表由 {@code PurchaseRecordAdapter} 驱动，基类 {@code ArrayAdapter}
+     * 用字段 {@code mData} 渲染。这里反射构造 {@code TradeLog} 并插到 {@code mData} 最前面，
+     * 行的布局、字号、金额格式全部由宿主自己完成，与普通交易记录完全一致。</p>
+     */
+    private static void injectUnreadRecords(Object adapter) {
+        try {
+            if (!isPurchaseAdapter(adapter) || !showsConsumeOnly(adapter)) {
+                return;
+            }
+            Context context = AndroidAppHelper.currentApplication();
+            if (context == null) {
+                return;
+            }
+            List<FailedCardStore.Entry> entries = FailedCardStore.all(context);
+            ClassLoader loader = adapter.getClass().getClassLoader();
+            List<Object> logs = new ArrayList<>();
+            for (int i = 0; i < entries.size(); i++) {
+                Object log = createUnreadLog(loader, entries.get(i), i);
+                if (log != null) {
+                    logs.add(log);
+                }
+            }
+            boolean changed = mutate(adapter, logs);
+            INJECTED_VERSION.put(adapter, FailedCardStore.version());
+            if (changed) {
+                android.util.Log.i("MiPayLiquidGlass/TradeSheet",
+                        "已注入未收取费用记录：" + logs.size() + " 条");
+                MAIN.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        // 数据源改动后让宿主重新绑定，新行由宿主原生渲染
+                        try {
+                            XposedHelpers.callMethod(adapter, "notifyDataSetChanged");
+                        } catch (Throwable ignored) {
+                            // ignore
+                        }
+                    }
+                });
+            }
+        } catch (Throwable ignored) {
+            // ignore
+        }
+    }
+
+    /** 绑定每一行时检查版本，失败记录有变化才重新注入。 */
+    private static void maybeInjectUnreadRecords(Object adapter) {
+        try {
+            if (!isPurchaseAdapter(adapter)) {
+                return;
+            }
+            Long injected = INJECTED_VERSION.get(adapter);
+            if (injected != null && injected == FailedCardStore.version()) {
+                return;
+            }
+            MAIN.post(new Runnable() {
+                @Override
+                public void run() {
+                    injectUnreadRecords(adapter);
+                }
+            });
+        } catch (Throwable ignored) {
+            // ignore
+        }
+    }
+
+    private static boolean isPurchaseAdapter(Object adapter) {
+        return adapter != null
+                && adapter.getClass().getName().contains("PurchaseRecordAdapter");
+    }
+
+    /** 「消费记录」页签才显示未收取费用记录；充值页签不显示。 */
+    private static boolean showsConsumeOnly(Object adapter) {
+        Object value = readField(adapter, "isOnlyDisplayConsume");
+        return !(value instanceof Boolean) || (Boolean) value;
+    }
+
+    /**
+     * 改适配器的 {@code mData}：先清掉上一次的合成行，再把最新的插到最前面。
+     *
+     * @return 数据是否发生变化
+     */
+    private static boolean mutate(Object adapter, List<Object> unreadLogs) {
+        Object data = readField(adapter, "mData");
+        if (!(data instanceof List)) {
+            return false;
+        }
+        List<?> current = (List<?>) data;
+        boolean changed = !unreadLogs.isEmpty() || containsUnread(current);
+        if (!changed) {
+            return false;
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            List<Object> mutable = (List<Object>) current;
+            for (int i = mutable.size() - 1; i >= 0; i--) {
+                if (isUnreadLog(mutable.get(i))) {
+                    mutable.remove(i);
+                }
+            }
+            mutable.addAll(0, unreadLogs);
+            return true;
+        } catch (Throwable ignored) {
+            // 宿主给的是不可变列表：复制一份写回去
+        }
+        List<Object> copy = new ArrayList<>(current.size() + unreadLogs.size());
+        copy.addAll(unreadLogs);
+        for (Object item : current) {
+            if (!isUnreadLog(item)) {
+                copy.add(item);
+            }
+        }
+        try {
+            XposedHelpers.setObjectField(adapter, "mData", copy);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean containsUnread(List<?> items) {
+        for (Object item : items) {
+            if (isUnreadLog(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isUnreadLog(Object item) {
+        Object mark = readField(item, "mAtc");
+        return mark instanceof String && ((String) mark).startsWith(UNREAD_MARK);
+    }
+
+    /** 反射构造一条与宿主同类型的交易记录。 */
+    private static Object createUnreadLog(ClassLoader loader, FailedCardStore.Entry entry,
+                                          int index) {
+        try {
+            Class<?> type = Class.forName("com.tsmclient.smartcard.model.TradeLog", false, loader);
+            Object log = type.getConstructor().newInstance();
+            setField(log, "mTrafficType", UNREAD_TYPE);
+            setField(log, "mConsumptionType", "01");
+            setField(log, "mTradeType", 1);
+            setField(log, "mCurCode", 156);
+            setField(log, "mAuAmount", 0f);
+            setField(log, "mStartToEndStation", UNREAD_PLACE);
+            setField(log, "mAppFunctionStationDescription", UNREAD_PLACE);
+            setField(log, "mBusinessName", UNREAD_TYPE);
+            setField(log, "mTradeDate", entry.date);
+            setField(log, "mTradeTime", entry.time);
+            setField(log, "mTradeID", -1 - index);
+            setField(log, "mAtc", UNREAD_MARK);
+            return log;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static void setField(Object target, String name, Object value) {
+        try {
+            Class<?> owner = target.getClass();
+            while (owner != null && owner != Object.class) {
+                try {
+                    java.lang.reflect.Field field = owner.getDeclaredField(name);
+                    field.setAccessible(true);
+                    if (value instanceof Float && field.getType() == float.class) {
+                        field.setFloat(target, (Float) value);
+                    } else if (value instanceof Integer && field.getType() == int.class) {
+                        field.setInt(target, (Integer) value);
+                    } else if (value instanceof String && field.getType() == String.class) {
+                        field.set(target, value);
+                    } else {
+                        field.set(target, value);
+                    }
+                    return;
+                } catch (NoSuchFieldException ignored) {
+                    // 往父类找
+                }
+                owner = owner.getSuperclass();
+            }
+        } catch (Throwable ignored) {
+            // ignore
+        }
     }
 
     /**
@@ -1119,14 +1353,53 @@ public final class TradeDetailSheet {
                                 if (itemView instanceof View) {
                                     readChannel(param.thisObject, (Integer) param.args[1],
                                             (View) itemView);
-                                    attachIfRecordItem((View) itemView, config);
+                                    attachIfRecordItem((View) itemView, config, true);
                                 }
+                                maybeInjectUnreadRecords(param.thisObject);
                             } catch (Throwable ignored) {
                                 // ignore
                             }
                         }
                     });
             XposedBridge.log("MiPayLiquidGlass/TradeSheet: 已挂 RecyclerView.Adapter#bindViewHolder");
+
+            // 宿主的记录列表每次刷新数据都会走 ArrayAdapter#updateData，
+            // 数据源一换，合成行就没了 —— 在这里补回去。
+            try {
+                Class<?> arrayAdapter = loadClass(classLoader, "com.miui.tsmclient.ui.ArrayAdapter");
+                if (arrayAdapter != null) {
+                    XposedHelpers.findAndHookMethod(arrayAdapter, "updateData", List.class,
+                            new XC_MethodHook() {
+                                @Override
+                                protected void afterHookedMethod(MethodHookParam param) {
+                                    try {
+                                        injectUnreadRecords(param.thisObject);
+                                    } catch (Throwable ignored) {
+                                        // ignore
+                                    }
+                                }
+                            });
+                    // ListView 复用行时不走 bindViewHolder，行的交易数据要在这里刷新，
+                    // 否则「未收取费用」行会沿用宿主渲染的 0.00 元金额。
+                    XposedHelpers.findAndHookMethod(arrayAdapter, "getView",
+                            int.class, View.class, ViewGroup.class, new XC_MethodHook() {
+                                @Override
+                                protected void afterHookedMethod(MethodHookParam param) {
+                                    try {
+                                        Object row = param.getResult();
+                                        if (row instanceof View) {
+                                            attachIfRecordItem((View) row, config, true);
+                                        }
+                                    } catch (Throwable ignored) {
+                                        // ignore
+                                    }
+                                }
+                            });
+                    XposedBridge.log("MiPayLiquidGlass/TradeSheet: 已挂 ArrayAdapter#updateData/getView");
+                }
+            } catch (Throwable ignored) {
+                // 宿主版本不同也没有关系：bindViewHolder 里还会兜底注入
+            }
         } catch (Throwable throwable) {
             XposedBridge.log("MiPayLiquidGlass/TradeSheet: 挂 bindViewHolder 失败 " + throwable);
         }
@@ -1147,7 +1420,9 @@ public final class TradeDetailSheet {
         }
         final float density = d;
         final boolean dark = com.liquidglass.mipay.Utils.isNightMode(activity.getResources());
-        final Plan plan = planFor(trade, trip);
+        // 「未收取费用」记录没有真实行程，地图走当前定位兜底
+        final boolean unread = isUnreadCard(trade);
+        final Plan plan = unread ? null : planFor(trade, trip);
 
         final Dialog dialog = new Dialog(activity);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -1221,7 +1496,7 @@ public final class TradeDetailSheet {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         String heroTag = plan != null && !plan.labels.isEmpty()
-                ? join(plan.labels) : trade.station;
+                ? join(plan.labels) : (plan == null ? "当前定位" : trade.station);
         if (heroTag != null && !heroTag.isEmpty()) {
             mapBox.addView(chip(activity, d, dark, heroTag, false),
                     chipParams(d, Gravity.BOTTOM | Gravity.START, 12, 12));
@@ -1312,16 +1587,17 @@ public final class TradeDetailSheet {
             amountRow.addView(unit, unitParams);
         }
         TextView status = new TextView(activity);
-        status.setText(statusText(trade.amount));
+        status.setText(unread ? UNREAD_TYPE : statusText(trade.amount));
         status.setTextSize(13f);
-        status.setTextColor(IOS_GREEN);
+        status.setTextColor(unread ? ERROR_RED : IOS_GREEN);
         status.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         LinearLayout.LayoutParams statusParams = wrapWrap();
         statusParams.leftMargin = dp(10, d);
         amountRow.addView(status, statusParams);
 
         TextView subtitle = new TextView(activity);
-        subtitle.setText(plan != null ? plan.reason : "");
+        subtitle.setText(unread ? "读卡失败，请重新刷卡"
+                : (plan != null ? plan.reason : ""));
         subtitle.setTextSize(12f);
         subtitle.setTextColor(LABEL);
         LinearLayout.LayoutParams subtitleParams = matchWrap();
@@ -1335,14 +1611,19 @@ public final class TradeDetailSheet {
         content.addView(sectionTitle(activity, d, "行程"));
         LinearLayout tripCard = card(activity, dark, d);
         content.addView(tripCard, matchWrap());
+        InfoRow placeRow = null;
         if (route) {
             tripCard.addView(addRow(activity, d, dark, "起点", plan.labels.get(0), true).root);
             tripCard.addView(addRow(activity, d, dark, "终点", plan.labels.get(1), true).root);
         } else {
             // 单点交易（含「行程中」这种未结束的记录）：不编造路线，只给出真实交易地点。
-            tripCard.addView(addRow(activity, d, dark, "交易地点",
-                    plan != null && !plan.labels.isEmpty() ? plan.labels.get(0) : trade.station,
-                    true).root);
+            // 解析不到站点时（含「未收取费用」）先显示『定位中…』，稍后换成当前定位。
+            String placeText = plan != null && !plan.labels.isEmpty()
+                    ? plan.labels.get(0)
+                    : (unread || trade.station == null || trade.station.isEmpty()
+                    ? LOADING : trade.station);
+            placeRow = addRow(activity, d, dark, "交易地点", placeText, true);
+            tripCard.addView(placeRow.root);
         }
         tripCard.addView(addRow(activity, d, dark, "类型", trade.type, true).root);
         tripCard.addView(addRow(activity, d, dark, "站点记录", trade.station, true).root);
@@ -1355,13 +1636,14 @@ public final class TradeDetailSheet {
         content.addView(sectionTitle(activity, d, "交易信息"));
         LinearLayout infoCard = card(activity, dark, d);
         content.addView(infoCard, matchWrap());
-        infoCard.addView(addRow(activity, d, dark, "状态", statusText(trade.amount), true).root);
+        infoCard.addView(addRow(activity, d, dark, "状态",
+                unread ? UNREAD_TYPE : statusText(trade.amount), true).root);
         infoCard.addView(addRow(activity, d, dark, "交易时间", trade.time, true).root);
         infoCard.addView(addRow(activity, d, dark, "交易金额", trade.amount, true).root);
         infoCard.addView(addRow(activity, d, dark, "交易通道", channelText(trade), false).root);
 
         // ---- 凭证信息（应用界面上看不到的原始字段）----
-        if (trade.extras != null && !trade.extras.isEmpty()) {
+        if (!unread && trade.extras != null && !trade.extras.isEmpty()) {
             content.addView(sectionTitle(activity, d, "凭证信息"));
             LinearLayout extraCard = card(activity, dark, d);
             content.addView(extraCard, matchWrap());
@@ -1375,8 +1657,9 @@ public final class TradeDetailSheet {
         }
 
         // ---- 站点信息（高德解析出的官方站名 / 区域 / 线路）----
+        // 没有可解析的站点时不编造站名，直接按「当前定位」兜底显示。
         final List<String> infoLabels = plan != null && !plan.labels.isEmpty()
-                ? new ArrayList<>(plan.labels) : singleList(trade.station);
+                ? new ArrayList<>(plan.labels) : singleList(plan == null ? "当前定位" : trade.station);
         content.addView(sectionTitle(activity, d, "站点信息"));
         LinearLayout stationCard = card(activity, dark, d);
         content.addView(stationCard, matchWrap());
@@ -1392,15 +1675,18 @@ public final class TradeDetailSheet {
 
         // 先用「风格化地图」占位，联网解析成功后再换成真地图
         List<String> fallbackLabels = plan != null && !plan.labels.isEmpty()
-                ? plan.labels : singleList(trade.station);
+                ? plan.labels : singleList(plan == null ? "当前定位" : trade.station);
         int mode = plan == null ? TradeMapRenderer.MODE_POINT : plan.mode;
         hero.setImageBitmap(TradeMapRenderer.fallback(fallbackLabels, mode,
                 heroWidth, heroHeight, mapRadius, dark));
 
         final int finalMode = mode;
         final List<String> finalLabels = fallbackLabels;
-        final List<String> keywords = plan == null ? fallbackLabels : plan.keywords;
+        // 没有可解析的站点时传空关键词，让 loadMapInto 直接去拉当前定位
+        final List<String> keywords = plan == null
+                ? new ArrayList<String>() : plan.keywords;
         final String tradeType = trade.type;
+        final InfoRow finalPlaceRow = placeRow;
         MAP_IO.execute(new Runnable() {
             @Override
             public void run() {
@@ -1410,6 +1696,17 @@ public final class TradeDetailSheet {
                             @Override
                             public void onResolved(List<TradePlaceResolver.Place> places) {
                                 fillPlaceInfo(places, infoLabels, stationViews, linesRow, areaRow);
+                                if (finalPlaceRow == null) {
+                                    return;
+                                }
+                                TradePlaceResolver.Place place =
+                                        places == null || places.isEmpty() ? null : places.get(0);
+                                String name = place == null ? null : place.name;
+                                if (name != null && !name.isEmpty()) {
+                                    finalPlaceRow.value.setText(name);
+                                } else if (plan == null) {
+                                    finalPlaceRow.value.setText("未能获取定位");
+                                }
                             }
                         });
             }
@@ -1535,7 +1832,10 @@ public final class TradeDetailSheet {
 
         final int mode = plan == null ? TradeMapRenderer.MODE_POINT : plan.mode;
         final List<String> labels = plan == null || plan.labels.isEmpty()
-                ? singleList(trade.station) : plan.labels;
+                ? singleList(plan == null ? "当前定位" : trade.station) : plan.labels;
+        // 没有可解析的站点时把关键词留空，loadMapInto 会直接取当前定位
+        final List<String> keywords = plan == null
+                ? new ArrayList<String>() : plan.keywords;
         // 等布局量出真实尺寸再渲染：地图与卡片严丝合缝，也不会把图钉裁掉
         mapBox.post(new Runnable() {
             @Override
@@ -1550,7 +1850,7 @@ public final class TradeDetailSheet {
                 MAP_IO.execute(new Runnable() {
                     @Override
                     public void run() {
-                        loadMapInto(activity.getApplicationContext(), trade.type, labels, labels,
+                        loadMapInto(activity.getApplicationContext(), trade.type, keywords, labels,
                                 mode, width, height, mapRadius, dark, map, "地图页", null);
                     }
                 });
@@ -1605,6 +1905,24 @@ public final class TradeDetailSheet {
                 }
             }
         }
+        // 交易地点解析不出来时自动拉取当前定位兜底，地图与详情页都换成当前位置
+        List<String> effectiveLabels = labels;
+        int effectiveMode = mode;
+        if (points.isEmpty()) {
+            TradePlaceResolver.Place current = TradePlaceResolver.currentPlace(appContext);
+            if (current != null) {
+                if (places.isEmpty()) {
+                    places.add(current);
+                } else {
+                    places.set(0, current);
+                }
+                points.add(new double[]{current.lat, current.lon});
+                effectiveLabels = singleList("当前定位");
+                effectiveMode = TradeMapRenderer.MODE_POINT;
+                android.util.Log.i("MiPayLiquidGlass/TradeSheet",
+                        where + " 未解析到交易地点，已回填当前定位：" + current.name);
+            }
+        }
         if (callback != null) {
             MAIN.post(new Runnable() {
                 @Override
@@ -1619,16 +1937,17 @@ public final class TradeDetailSheet {
             return;
         }
         // 只解析到一半时退化为单点，避免画出「一端在图外」的怪图
-        int mode2 = (mode == TradeMapRenderer.MODE_ROUTE && points.size() < 2)
-                ? TradeMapRenderer.MODE_POINT : mode;
-        List<String> labels2 = mode2 == mode ? labels : labels.subList(0, 1);
+        int mode2 = (effectiveMode == TradeMapRenderer.MODE_ROUTE && points.size() < 2)
+                ? TradeMapRenderer.MODE_POINT : effectiveMode;
+        List<String> labels2 = mode2 == effectiveMode
+                ? effectiveLabels : effectiveLabels.subList(0, 1);
         final Bitmap bitmap = TradeMapRenderer.render(points, labels2, mode2,
                 width, height, corner, dark);
         if (bitmap == null) {
             android.util.Log.i("MiPayLiquidGlass/TradeSheet", where + " 地图瓦片不可用，保留降级图");
             return;
         }
-        android.util.Log.i("MiPayLiquidGlass/TradeSheet", where + " 地图已生成：" + labels
+        android.util.Log.i("MiPayLiquidGlass/TradeSheet", where + " 地图已生成：" + labels2
                 + " " + bitmap.getWidth() + "x" + bitmap.getHeight()
                 + " 模式=" + (mode2 == TradeMapRenderer.MODE_ROUTE ? "哪到哪" : "单点"));
         MAIN.post(new Runnable() {
@@ -1834,7 +2153,9 @@ public final class TradeDetailSheet {
         if (plan != null && !plan.labels.isEmpty()) {
             return join(plan.labels);
         }
-        return trade.station == null ? "交易地图" : trade.station;
+        // 没有可解析的站点时地图展示当前定位
+        return plan == null ? "当前定位"
+                : (trade.station == null || trade.station.isEmpty() ? "交易地图" : trade.station);
     }
 
     // ======================================================================
@@ -2103,7 +2424,7 @@ public final class TradeDetailSheet {
         try {
             StringBuilder lines = new StringBuilder();
             StringBuilder areas = new StringBuilder();
-            for (int i = 0; i < keywords.size() && i < stationViews.size(); i++) {
+            for (int i = 0; i < stationViews.size(); i++) {
                 TextView[] holder = stationViews.get(i);
                 TradePlaceResolver.Place place =
                         places != null && i < places.size() ? places.get(i) : null;
